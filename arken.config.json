@@ -1,8 +1,12 @@
 {
   "option": {
-    "metaverse": "Omomu",
+    "metaverse": "Arken",
     "applications": [
-      "OLA"
+      "OLA",
+      "ABC",
+      null,
+      "aa",
+      "bb"
     ]
   }
 }

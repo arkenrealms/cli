@@ -1,0 +1,22 @@
+name: CI
+on:
+  push: {}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - run: rush install
+      - run: rush update
+      - run: rushx build
+      - run: rushx lint
+      - run: rushx test
+  test_trpc_vnext:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - run: rush add -p @trpc/server@next
+      - run: rushx test e2e

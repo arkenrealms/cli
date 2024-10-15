@@ -1,16 +1,20 @@
-import { Command } from "commander";
-import { ConfigCommand } from "./commands/config";
-import { ApplicationCommand } from "./commands/application";
-const program = new Command();
+import { createCli, type TrpcCliMeta, trpcServer, z } from "./";
+import ApplicationService from "./modules/application/application.service";
+import { createRouter as createApplicationRouter } from "./modules/application/application.router";
+import ConfigService from "./modules/config/config.service";
+import { createRouter as createConfigRouter } from "./modules/config/config.router";
+import MathService from "./modules/math/math.service";
+import { createRouter as createMathRouter } from "./modules/math/math.router";
+import HelpService from "./modules/help/help.service";
+import { createRouter as createHelpRouter } from "./modules/help/help.router";
 
-program
-  .name("arken")
-  .description("A CLI tool for managing configurations")
-  .version("1.0.0");
+const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
-// Register commands
-program.addCommand(new ConfigCommand());
-program.addCommand(new ApplicationCommand());
+const router = trpc.router({
+  application: createApplicationRouter(new ApplicationService()),
+  config: createConfigRouter(new ConfigService()),
+  math: createMathRouter(new MathService()),
+  help: createHelpRouter(new HelpService()),
+});
 
-// Parse the arguments
-program.parse(process.argv);
+void createCli({ router }).run();
