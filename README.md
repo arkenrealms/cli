@@ -18,12 +18,14 @@ TODO:
 
 ```bash
 ./bin/arken ask "Some question here"
+./bin/arken application.set `{ where: { name: { equals: "Arken" } } }`
+./bin/arken product.set `{ where: { key: { equals: "arken-isles" } } }`
 ./bin/arken agent.create AgentName
 ./bin/arken agent.call AgentName MethodName Param1 Param2 Param3
 ./bin/arken agent.call hisoka run
 ./bin/arken agent.call hisoka fetchAndProcessVideos H3AZiZUzglE
+./bin/arken game.set `{ where: { key: { equals: "arken-isles" } } }`
 ./bin/arken game.getEras
-./bin/arken game.getEra 66d242abcfa9286652ddea64
 ./bin/arken game.getEra `{ where: { name: { equals: "Prehistory" } } }`
 ./bin/arken evolution.info
 ./bin/arken evolution.auth
