@@ -14,6 +14,24 @@ Try out:
 ./bin/arken help.man cerebro
 ```
 
+TODO:
+
+```bash
+./bin/arken ask "Some question here"
+./bin/arken agent.create AgentName
+./bin/arken agent.call AgentName MethodName Param1 Param2 Param3
+./bin/arken agent.call hisoka run
+./bin/arken agent.call hisoka fetchAndProcessVideos H3AZiZUzglE
+./bin/arken game.getEras
+./bin/arken game.getEra 66d242abcfa9286652ddea64
+./bin/arken game.getEra `{ where: { name: { equals: "Prehistory" } } }`
+./bin/arken evolution.info
+./bin/arken evolution.auth
+./bin/arken evolution.connectSeer
+./bin/arken evolution.createShard
+./bin/arken evolution.getShards `{ where: { realmId: { equals: "REALM ID HERE" } } }`
+```
+
 Run the individual module CLI:
 
 ```

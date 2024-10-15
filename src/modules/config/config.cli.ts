@@ -7,7 +7,6 @@ const router = createRouter(new Service());
 void createCli({
   router,
   alias: (name, { command }) => {
-    console.log("zzzz", name, command);
     if (command === "ls") {
       return "list";
     }
