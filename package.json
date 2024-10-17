@@ -9,13 +9,13 @@
     "test:watch": "jest --watch --collect-coverage --config=jest.unit.config.js",
     "test:coverage": "jest --coverage",
     "lint": "eslint --max-warnings=0 .",
-    "dev": "cd test/fixtures && tsx",
-    "dev:math": "cd test/fixtures && tsx math.ts",
-    "dev:fs": "cd test/fixtures && tsx fs.ts",
-    "dev:diff": "cd test/fixtures && tsx diff.ts",
-    "dev:migrations": "cd test/fixtures && tsx migrations.ts",
-    "dev:application": "cd src/modules/application && tsx application.cli.ts",
-    "dev:config": "cd src/modules/config && tsx config.cli.ts"
+    "cli": "cd src && tsx cli.ts",
+    "cli:math": "cd test/fixtures && tsx math.ts",
+    "cli:fs": "cd test/fixtures && tsx fs.ts",
+    "cli:diff": "cd test/fixtures && tsx diff.ts",
+    "cli:migrations": "cd test/fixtures && tsx migrations.ts",
+    "cli:application": "cd src/modules/application && tsx application.cli.ts",
+    "cli:config": "cd src/modules/config && tsx config.cli.ts"
   },
   "bin": {
     "arken": "./bin/arken"
@@ -24,6 +24,9 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@arken/node": "workspace:*",
+    "@arken/seer-protocol": "workspace:*",
+    "@arken/evolution-protocol": "workspace:*",
     "@types/jest": "^29",
     "@types/node": "^20",
     "jest": "^29",

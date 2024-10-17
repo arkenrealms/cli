@@ -7,3 +7,5 @@ coverage
 .oldgit
 
 .DS_Store
+
+arken.db*

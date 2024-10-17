@@ -5,6 +5,8 @@ import colors from "picocolors";
 import { ZodError } from "zod";
 import { type JsonSchema7Type } from "zod-to-json-schema";
 import * as zodValidationError from "zod-validation-error";
+// import { type AppRouter, combinedLink } from "./router";
+import { createTRPCProxyClient, TRPCClientError, TRPCLink } from "@trpc/client";
 import {
   flattenedProperties,
   incompatiblePropertyPairs,
@@ -54,6 +56,7 @@ export interface TrpcCli {
  */
 export function createCli<R extends AnyRouter>({
   router,
+  link,
   ...params
 }: TrpcCliParams<R>): TrpcCli {
   const procedures = Object.entries<AnyProcedure>(
@@ -195,12 +198,15 @@ export function createCli<R extends AnyRouter>({
 
     type Context = NonNullable<typeof params.context>;
 
-    const createCallerFactory =
-      params.createCallerFactory ||
-      (trpcServer.initTRPC.context<Context>().create({})
-        .createCallerFactory as CreateCallerFactoryLike);
+    // const createCallerFactory =
+    //   params.createCallerFactory ||
+    //   (trpcServer.initTRPC.context<Context>().create({})
+    //     .createCallerFactory as CreateCallerFactoryLike);
 
-    const caller = createCallerFactory(router)(params.context);
+    // const caller = createCallerFactory(router)(params.context);
+    const caller = createTRPCProxyClient<R>({
+      links: [link],
+    });
 
     const die: Fail = (
       message: string,
@@ -263,9 +269,10 @@ export function createCli<R extends AnyRouter>({
     }) as never;
 
     try {
-      const result: unknown = await (caller[procedureInfo.name] as Function)(
-        input
-      );
+      console.log(caller[procedureInfo.name].query);
+      const result: unknown = await (
+        caller[procedureInfo.name].query as Function
+      )(input);
       if (result) logger.info?.(result);
       _process.exit(0);
     } catch (err) {

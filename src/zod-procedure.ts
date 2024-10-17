@@ -1,19 +1,31 @@
+// zod-procedure.ts
+
 import { z, type ZodTypeAny } from "zod";
 import zodToJsonSchema from "zod-to-json-schema";
 import type { Result, ParsedProcedure } from "./types";
 
-function getInnerType(zodType: ZodTypeAny): ZodTypeAny {
+function getInnerType(
+  zodType: ZodTypeAny,
+  seen = new WeakSet<ZodTypeAny>()
+): ZodTypeAny {
+  if (seen.has(zodType)) {
+    return zodType;
+  }
+  seen.add(zodType);
+
   if (zodType instanceof z.ZodOptional || zodType instanceof z.ZodNullable) {
-    return getInnerType(zodType.unwrap());
+    return getInnerType(zodType.unwrap(), seen);
   }
   if (zodType instanceof z.ZodEffects) {
-    return getInnerType(zodType._def.schema);
+    return getInnerType(zodType._def.schema, seen);
   }
   return zodType;
 }
 
 export function parseProcedureInputs(
-  inputs: unknown[]
+  inputs: unknown[],
+  seen = new WeakSet<ZodTypeAny>(),
+  definitions: Record<string, unknown> = {}
 ): Result<ParsedProcedure> {
   if (inputs.length === 0) {
     return {
@@ -32,8 +44,19 @@ export function parseProcedureInputs(
     };
   }
 
+  // Check for recursion
+  for (const input of inputs) {
+    if (seen.has(input as ZodTypeAny)) {
+      return {
+        success: true,
+        value: { parameters: [], flagsSchema: {}, getInput: () => ({}) },
+      };
+    }
+    seen.add(input as ZodTypeAny);
+  }
+
   if (inputs.length > 1) {
-    return parseMultiInputs(inputs as ZodTypeAny[]);
+    return parseMultiInputs(inputs as ZodTypeAny[], seen, definitions);
   }
 
   const mergedSchema = inputs[0] as ZodTypeAny;
@@ -43,7 +66,7 @@ export function parseProcedureInputs(
   }
 
   if (mergedSchema instanceof z.ZodTuple) {
-    return parseTupleInput(mergedSchema);
+    return parseTupleInput(mergedSchema, seen, definitions);
   }
 
   if (
@@ -57,16 +80,27 @@ export function parseProcedureInputs(
     return {
       success: false,
       error: `Invalid input type ${
-        getInnerType(mergedSchema).constructor.name
+        getInnerType(mergedSchema, seen).constructor.name
       }, expected object or tuple`,
     };
   }
+
+  // Convert the Zod schema to JSON Schema with proper options
+  const jsonSchema = zodToJsonSchema(mergedSchema, {
+    refStrategy: "id",
+    definitionPath: ["definitions"],
+    definitions,
+    name: "InputSchema",
+  });
 
   return {
     success: true,
     value: {
       parameters: [],
-      flagsSchema: zodToJsonSchema(mergedSchema),
+      flagsSchema: {
+        ...jsonSchema,
+        definitions,
+      },
       getInput: (argv) => argv.flags,
     },
   };
@@ -95,10 +129,14 @@ function acceptedLiteralTypes(
   return types;
 }
 
-function parseMultiInputs(inputs: ZodTypeAny[]): Result<ParsedProcedure> {
+function parseMultiInputs(
+  inputs: ZodTypeAny[],
+  seen: WeakSet<ZodTypeAny>,
+  definitions: Record<string, unknown>
+): Result<ParsedProcedure> {
   if (!inputs.every(acceptsObject)) {
     const types = inputs
-      .map((s) => getInnerType(s).constructor.name)
+      .map((s) => getInnerType(s, seen).constructor.name)
       .join(", ");
     return {
       success: false,
@@ -106,11 +144,12 @@ function parseMultiInputs(inputs: ZodTypeAny[]): Result<ParsedProcedure> {
     };
   }
 
-  const parsedInputs = inputs.map((input) => parseProcedureInputs([input]));
+  const parsedInputs = inputs.map((input) =>
+    parseProcedureInputs([input], seen, definitions)
+  );
   const errors = parsedInputs
     .filter((result) => !result.success)
-    // @ts-ignore
-    .map((result) => result.error);
+    .map((result) => (result as Result.Failure).error);
 
   if (errors.length > 0) {
     return { success: false, error: errors.join("\n") };
@@ -122,9 +161,10 @@ function parseMultiInputs(inputs: ZodTypeAny[]): Result<ParsedProcedure> {
       parameters: [],
       flagsSchema: {
         allOf: parsedInputs.map((p) => {
-          const successful = p as Extract<typeof p, { success: true }>;
+          const successful = p as Result.Success<ParsedProcedure>;
           return successful.value.flagsSchema;
         }),
+        definitions,
       },
       getInput: (argv) => argv.flags,
     },
@@ -153,9 +193,13 @@ function parseArrayInput(
   };
 }
 
-function parseTupleInput(tupleSchema: z.ZodTuple): Result<ParsedProcedure> {
+function parseTupleInput(
+  tupleSchema: z.ZodTuple,
+  seen: WeakSet<ZodTypeAny>,
+  definitions: Record<string, unknown>
+): Result<ParsedProcedure> {
   const types = `[${tupleSchema.items
-    .map((s) => getInnerType(s).constructor.name)
+    .map((s) => getInnerType(s, seen).constructor.name)
     .join(", ")}]`;
 
   const nonPositionalIndex = tupleSchema.items.findIndex((item) => {
@@ -226,11 +270,22 @@ function parseTupleInput(tupleSchema: z.ZodTuple): Result<ParsedProcedure> {
     };
   }
 
+  // Convert the last schema to JSON Schema with proper options
+  const jsonSchema = zodToJsonSchema(lastSchema, {
+    refStrategy: "id",
+    definitionPath: ["definitions"],
+    definitions,
+    name: "InputSchema",
+  });
+
   return {
     success: true,
     value: {
       parameters: parameterNames,
-      flagsSchema: zodToJsonSchema(lastSchema),
+      flagsSchema: {
+        ...jsonSchema,
+        definitions,
+      },
       getInput: (argv) => [
         ...positionalParametersToTupleInput(argv),
         argv.flags,
@@ -272,8 +327,16 @@ function parameterName(schema: ZodTypeAny, position: number): string {
  * Useful for static validation, and for deciding whether to preprocess a string input before passing it to a zod schema.
  */
 export function accepts<ZodTarget extends ZodTypeAny>(target: ZodTarget) {
-  const test = (zodType: ZodTypeAny): boolean => {
-    const innerType = getInnerType(zodType);
+  const test = (
+    zodType: ZodTypeAny,
+    seen = new WeakSet<ZodTypeAny>()
+  ): boolean => {
+    if (seen.has(zodType)) {
+      return false;
+    }
+    seen.add(zodType);
+
+    const innerType = getInnerType(zodType, seen);
 
     if (innerType.constructor === target.constructor) return true;
 
@@ -288,15 +351,17 @@ export function accepts<ZodTarget extends ZodTypeAny>(target: ZodTarget) {
     }
 
     if (innerType instanceof z.ZodUnion) {
-      return innerType.options.some((option) => test(option));
+      return innerType.options.some((option) => test(option, seen));
     }
 
     if (innerType instanceof z.ZodEffects) {
-      return test(innerType._def.schema);
+      return test(innerType._def.schema, seen);
     }
 
     if (innerType instanceof z.ZodIntersection) {
-      return test(innerType._def.left) && test(innerType._def.right);
+      return (
+        test(innerType._def.left, seen) && test(innerType._def.right, seen)
+      );
     }
 
     return false;

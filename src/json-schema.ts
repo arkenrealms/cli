@@ -16,21 +16,31 @@ const capitalizeFromCamelCase = (camel: string): string => {
 const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const flattenedProperties = (
-  schema: JsonSchema7Type
+  schema: JsonSchema7Type,
+  seenSchemas = new WeakSet()
 ): JsonSchema7ObjectType["properties"] => {
+  if (seenSchemas.has(schema)) {
+    return {};
+  }
+  seenSchemas.add(schema);
+
   if ("properties" in schema) {
     return schema.properties as JsonSchema7ObjectType["properties"];
   }
   if ("allOf" in schema) {
     return Object.fromEntries(
       schema.allOf!.flatMap((subSchema) =>
-        Object.entries(flattenedProperties(subSchema as JsonSchema7Type))
+        Object.entries(
+          flattenedProperties(subSchema as JsonSchema7Type, seenSchemas)
+        )
       )
     );
   }
   if ("anyOf" in schema) {
     const entries = schema.anyOf!.flatMap((subSchema) =>
-      Object.entries(flattenedProperties(subSchema as JsonSchema7Type))
+      Object.entries(
+        flattenedProperties(subSchema as JsonSchema7Type, seenSchemas)
+      )
     );
 
     return Object.fromEntries(entries);
@@ -70,9 +80,20 @@ export const incompatiblePropertyPairs = (
 /**
  * Tries fairly hard to build a roughly human-readable description of a JSON Schema type.
  */
-export const getDescription = (schema: JsonSchema7Type): string => {
+export const getDescription = (
+  schema: JsonSchema7Type,
+  seenSchemas = new WeakSet()
+): string => {
+  if (seenSchemas.has(schema)) {
+    return "";
+  }
+  seenSchemas.add(schema);
+
   if ("items" in schema) {
-    return [getDescription(schema.items as JsonSchema7Type), "(array)"]
+    return [
+      getDescription(schema.items as JsonSchema7Type, seenSchemas),
+      "(array)",
+    ]
       .filter(Boolean)
       .join(" ");
   }
