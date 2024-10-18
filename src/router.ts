@@ -176,7 +176,7 @@ backends.forEach((backend) => {
     // Handle incoming socket events
     client.socket.onAny((eventName, res) => {
       try {
-        console.log(`[${backend.name} Socket] Event:`, eventName, res);
+        // console.log(`[${backend.name} Socket] Event:`, eventName, res);
 
         if (eventName === "Events") return;
 
@@ -184,7 +184,7 @@ backends.forEach((backend) => {
 
         if (id) {
           if (client.ioCallbacks[id]) {
-            console.log(`[${backend.name} Socket] Callback exists for ID:`, id);
+            // console.log(`[${backend.name} Socket] Callback exists for ID:`, id);
 
             clearTimeout(client.ioCallbacks[id].timeout);
 
@@ -281,7 +281,7 @@ export const combinedLink: TRPCLink<any> =
             return;
           }
 
-          console.log(`[${routerName} Link] Emit Direct:`, op, client.socket);
+          // console.log(`[${routerName} Link] Emit Direct:`, op, client.socket);
 
           client.socket.emit("trpc", {
             id: uuid,
@@ -300,11 +300,11 @@ export const combinedLink: TRPCLink<any> =
           client.ioCallbacks[uuid] = {
             timeout,
             resolve: (response) => {
-              console.log(
-                `[${routerName} Link] Callback resolved:`,
-                uuid,
-                response
-              );
+              // console.log(
+              //   `[${routerName} Link] Callback resolved:`,
+              //   uuid,
+              //   response
+              // );
               clearTimeout(timeout);
               if (response.error) {
                 observer.error(response.error);
@@ -335,18 +335,18 @@ export const combinedLink: TRPCLink<any> =
           // const caller = createCallerFactory(router)();
           const methodName = op.path.replace(routerName + ".", "");
 
-          console.log(
-            "Calling local router",
-            routerName,
-            methodName,
-            op.type,
-            input,
-            callers[routerName][methodName]
-          );
+          // console.log(
+          //   "Calling local router",
+          //   routerName,
+          //   methodName,
+          //   op.type,
+          //   input,
+          //   callers[routerName][methodName]
+          // );
 
           const res = await callers[routerName][methodName](input);
 
-          console.log("Result: ", res);
+          console.log(res);
         }
       };
 

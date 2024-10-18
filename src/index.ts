@@ -5,20 +5,14 @@ import colors from "picocolors";
 import { ZodError } from "zod";
 import { type JsonSchema7Type } from "zod-to-json-schema";
 import * as zodValidationError from "zod-validation-error";
-// import { type AppRouter, combinedLink } from "./router";
-import { createTRPCProxyClient, TRPCClientError, TRPCLink } from "@trpc/client";
+import { createTRPCProxyClient } from "@trpc/client";
 import {
   flattenedProperties,
   incompatiblePropertyPairs,
   getDescription,
 } from "./json-schema";
 import { lineByLineConsoleLogger } from "./logging";
-import {
-  AnyProcedure,
-  AnyRouter,
-  CreateCallerFactoryLike,
-  isTrpc11Procedure,
-} from "./trpc-compat";
+import { AnyProcedure, AnyRouter, isTrpc11Procedure } from "./trpc-compat";
 import { Logger, TrpcCliParams } from "./types";
 import { looksLikeInstanceof } from "./util";
 import { parseProcedureInputs } from "./zod-procedure";
@@ -30,9 +24,7 @@ export * as zod from "zod";
 
 export * as trpcServer from "@trpc/server";
 
-/** re-export of the @trpc/server package, just to avoid needing to install manually when getting started */
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/** Re-export of the @trpc/server package to avoid needing to install manually when getting started */
 
 export type { AnyRouter, AnyProcedure } from "./trpc-compat";
 
@@ -40,7 +32,11 @@ export interface TrpcCli {
   run: (params?: {
     argv?: string[];
     logger?: Logger;
-    process?: { exit: (code: number) => never };
+    process?: {
+      stdin: NodeJS.ReadableStream;
+      stdout: NodeJS.WritableStream;
+      exit: (code: number) => never;
+    };
   }) => Promise<void>;
   ignoredProcedures: { procedure: string; reason: string }[];
 }
@@ -49,10 +45,9 @@ export interface TrpcCli {
  * Run a trpc router as a CLI.
  *
  * @param router A trpc router
- * @param context The context to use when calling the procedures - needed if your router requires a context
- * @param alias A function that can be used to provide aliases for flags.
- * @param default A procedure to use as the default command when the user doesn't specify one.
- * @returns A CLI object with a `run` method that can be called to run the CLI. The `run` method will parse the command line arguments, call the appropriate trpc procedure, log the result and exit the process. On error, it will log the error and exit with a non-zero exit code.
+ * @param link The TRPC link to use for client communication
+ * @param params Additional parameters for CLI configuration
+ * @returns A CLI object with a `run` method
  */
 export function createCli<R extends AnyRouter>({
   router,
@@ -75,7 +70,7 @@ export function createCli<R extends AnyRouter>({
     const properties = flattenedProperties(jsonSchema.flagsSchema);
     const incompatiblePairs = incompatiblePropertyPairs(jsonSchema.flagsSchema);
 
-    // trpc types are a bit of a lie - they claim to be `router._def.procedures.foo.bar` but really they're `router._def.procedures['foo.bar']`
+    // TRPC types are a bit of a lie - they claim to be `router._def.procedures.foo.bar` but really they're `router._def.procedures['foo.bar']`
     const trpcProcedure = router._def.procedures[name] as AnyProcedure;
     let type: "mutation" | "query" | "subscription";
     if (isTrpc11Procedure(trpcProcedure)) {
@@ -115,7 +110,11 @@ export function createCli<R extends AnyRouter>({
   async function run(runParams?: {
     argv?: string[];
     logger?: Logger;
-    process?: { exit: (code: number) => never };
+    process?: {
+      stdin: NodeJS.ReadableStream;
+      stdout: NodeJS.WritableStream;
+      exit: (code: number) => never;
+    };
   }) {
     const logger = { ...lineByLineConsoleLogger, ...runParams?.logger };
     const _process = runParams?.process || process;
@@ -182,6 +181,11 @@ export function createCli<R extends AnyRouter>({
             description: `Throw raw errors (by default errors are summarised)`,
             default: false,
           },
+          interactive: {
+            type: Boolean,
+            description: `Enter interactive mode`,
+            default: false,
+          },
         },
         ...defaultCommand,
         commands: cleyeCommands
@@ -198,15 +202,15 @@ export function createCli<R extends AnyRouter>({
 
     type Context = NonNullable<typeof params.context>;
 
-    // const createCallerFactory =
-    //   params.createCallerFactory ||
-    //   (trpcServer.initTRPC.context<Context>().create({})
-    //     .createCallerFactory as CreateCallerFactoryLike);
-
-    // const caller = createCallerFactory(router)(params.context);
     const caller = createTRPCProxyClient<R>({
       links: [link],
     });
+
+    // Adjust the die function to handle interactive mode
+    const isInteractive =
+      parsedArgv.flags.interactive ||
+      parsedArgv._.length === 0 ||
+      !parsedArgv.command;
 
     const die: Fail = (
       message: string,
@@ -219,14 +223,76 @@ export function createCli<R extends AnyRouter>({
       if (help) {
         parsedArgv.showHelp();
       }
-      return _process.exit(1);
+      if (!isInteractive) {
+        _process.exit(1);
+      }
     };
 
-    // @ts-ignore
+    // Handle interactive mode
+    if (isInteractive) {
+      await runInteractive({
+        runParams,
+        procedures: procedureMap,
+        executeCommand,
+        die,
+        caller,
+        cleyeCommands,
+        logger,
+        verboseErrors,
+        defaultCommand,
+        params,
+        process: _process,
+      });
+      return;
+    }
+
+    // Execute the command
+    await executeCommand(parsedArgv, {
+      caller,
+      die,
+      logger,
+      process: _process,
+      verboseErrors,
+      cleyeCommands,
+      params,
+    });
+  }
+
+  // Refactor command execution into a separate function
+  async function executeCommand(
+    parsedArgv: ReturnType<typeof cleye.cli>,
+    {
+      caller,
+      die,
+      logger,
+      process,
+      verboseErrors,
+      cleyeCommands,
+      params,
+    }: {
+      caller: any;
+      die: Fail;
+      logger: Logger;
+      process: {
+        stdin: NodeJS.ReadableStream;
+        stdout: NodeJS.WritableStream;
+        exit: (code: number) => never;
+      };
+      verboseErrors: boolean;
+      cleyeCommands: CleyeCommandOptions[];
+      params: TrpcCliParams<R>;
+    }
+  ) {
+    let { help, ...flags } = parsedArgv.flags;
+
+    flags = Object.fromEntries(
+      Object.entries(flags as {}).filter(([_k, v]) => v !== undefined)
+    ); // Cleye returns undefined for flags which didn't receive a value
+
     let command = parsedArgv.command as string | undefined;
 
-    if (!command && params.default) {
-      command = params.default.procedure as string;
+    if (!command && parsedArgv._.length > 0) {
+      command = parsedArgv._[0];
     }
 
     const procedureInfo = command && procedureMap[command];
@@ -239,18 +305,14 @@ export function createCli<R extends AnyRouter>({
       return die(message);
     }
 
-    if (Object.entries(unknownFlags).length > 0) {
-      const s = Object.entries(unknownFlags).length === 1 ? "" : "s";
+    if (Object.entries(parsedArgv.unknownFlags).length > 0) {
+      const s = Object.entries(parsedArgv.unknownFlags).length === 1 ? "" : "s";
       return die(
-        `Unexpected flag${s}: ${Object.keys(unknownFlags).join(", ")}`
+        `Unexpected flag${s}: ${Object.keys(parsedArgv.unknownFlags).join(
+          ", "
+        )}`
       );
     }
-
-    let { help, ...flags } = parsedArgv.flags;
-
-    flags = Object.fromEntries(
-      Object.entries(flags as {}).filter(([_k, v]) => v !== undefined)
-    ); // cleye returns undefined for flags which didn't receive a value
 
     const incompatibleMessages = procedureInfo.incompatiblePairs
       .filter(([a, b]) => a in flags && b in flags)
@@ -269,27 +331,115 @@ export function createCli<R extends AnyRouter>({
     }) as never;
 
     try {
-      console.log(caller[procedureInfo.name].query);
+      // console.log("TRPC-CLI running command", procedureInfo);
       const result: unknown = await (
-        caller[procedureInfo.name].query as Function
+        caller[procedureInfo.name][procedureInfo.type] as Function
       )(input);
       if (result) logger.info?.(result);
-      _process.exit(0);
+      if (!parsedArgv.flags.interactive) {
+        process.exit(0);
+      }
     } catch (err) {
       throw transformError(err, die);
     }
   }
 
+  // Implement the interactive loop
+  async function runInteractive({
+    runParams,
+    procedures,
+    executeCommand,
+    die,
+    caller,
+    cleyeCommands,
+    logger,
+    verboseErrors,
+    defaultCommand,
+    params,
+    process,
+  }: {
+    runParams: any;
+    procedures: Record<string, any>;
+    executeCommand: Function;
+    die: Fail;
+    caller: any;
+    cleyeCommands: CleyeCommandOptions[];
+    logger: Logger;
+    verboseErrors: boolean;
+    defaultCommand: CleyeCommandOptions | undefined;
+    params: TrpcCliParams<R>;
+    process: {
+      stdin: NodeJS.ReadableStream;
+      stdout: NodeJS.WritableStream;
+      exit: (code: number) => never;
+    };
+  }) {
+    const readline = require("readline");
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      prompt: "> ",
+    });
+
+    rl.prompt();
+
+    rl.on("line", async (line: string) => {
+      const inputArgv = line.trim().split(/\s+/);
+
+      if (inputArgv.length === 0 || !inputArgv[0]) {
+        rl.prompt();
+        return;
+      }
+
+      // Parse the input arguments
+      const parsedArgv = cleye.cli(
+        {
+          flags: {
+            verboseErrors: {
+              type: Boolean,
+              description: `Throw raw errors (by default errors are summarised)`,
+              default: false,
+            },
+          },
+          ...defaultCommand,
+          commands: cleyeCommands
+            .filter((cmd) => cmd.name !== defaultCommand?.name)
+            .map((cmd) => cleye.command(cmd)) as cleye.Command[],
+        },
+        undefined,
+        inputArgv
+      );
+
+      parsedArgv.flags.interactive = true;
+
+      try {
+        await executeCommand(parsedArgv, {
+          caller,
+          die,
+          logger,
+          process,
+          verboseErrors,
+          cleyeCommands,
+          params,
+        });
+      } catch (err) {
+        // Handle errors in interactive mode
+        die(err.message, { cause: err, help: false });
+      }
+
+      rl.prompt();
+    }).on("close", () => {
+      process.exit(0);
+    });
+  }
+
   return { run, ignoredProcedures };
 }
-
-/** @deprecated renamed to `createCli` */
-export const trpcCli = createCli;
 
 type Fail = (
   message: string,
   options?: { cause?: unknown; help?: boolean }
-) => never;
+) => void;
 
 function transformError(err: unknown, fail: Fail): unknown {
   if (
@@ -360,7 +510,7 @@ function getCleyeType(
       return (s: string) => JSON.parse(s) as {};
     }
     default: {
-      _type satisfies "null" | null; // make sure we were exhaustive (forgot integer at one point)
+      _type satisfies "null" | null; // Ensure exhaustive checking
       return (value: unknown) => value;
     }
   }
