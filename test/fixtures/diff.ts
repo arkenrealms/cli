@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { createCli, type TrpcCliMeta, trpcServer, z } from "../../src";
+import { link } from "../../src/router";
 
 const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
@@ -31,6 +32,7 @@ const router = trpc.router({
 
 const cli = createCli({
   router,
+  link,
   default: { procedure: "diff" },
 });
 void cli.run();

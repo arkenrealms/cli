@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createCli, type TrpcCliMeta, trpcServer } from "../../src";
+import { link } from "../../src/router";
 
 const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
@@ -44,4 +45,4 @@ const router = trpc.router({
     .mutation(({ input }) => input[0] / input[1]),
 });
 
-void createCli({ router }).run();
+void createCli({ router, link }).run();

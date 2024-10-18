@@ -1,4 +1,5 @@
 import { createCli, type TrpcCliMeta, trpcServer, z } from "../../src";
+import { link } from "../../src/router";
 
 const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
@@ -73,4 +74,4 @@ function getFakeFileSystem(): Record<string, string> {
   };
 }
 
-void createCli({ router }).run();
+void createCli({ router, link }).run();

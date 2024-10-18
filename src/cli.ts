@@ -1,4 +1,4 @@
 import { createCli } from "./";
-import { router, combinedLink } from "./router";
+import { router, link } from "./router";
 
-void createCli({ router: router, link: combinedLink }).run();
+void createCli({ router: router, link: link }).run();

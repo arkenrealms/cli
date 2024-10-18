@@ -1,6 +1,7 @@
 import { initTRPC } from "@trpc/server";
 import { expect, test, vi } from "vitest";
 import { createCli, type TrpcCliMeta, z } from "../src";
+import { link } from "../src/router";
 
 test("can create cli from trpc v11", async () => {
   const t = initTRPC
@@ -30,7 +31,8 @@ test("can create cli from trpc v11", async () => {
 
   const cli = createCli({
     router,
-    createCallerFactory: initTRPC.create().createCallerFactory,
+    link,
+    // createCallerFactory: initTRPC.create().createCallerFactory,
   });
 
   expect(cli).toBeDefined();

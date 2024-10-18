@@ -205,18 +205,19 @@ export function createCli<R extends AnyRouter>({
     const caller = createTRPCProxyClient<R>({
       links: [link],
     });
-
+    // console.log("argv", parsedArgv);
     // Adjust the die function to handle interactive mode
     const isInteractive =
       parsedArgv.flags.interactive ||
       parsedArgv._.length === 0 ||
       !parsedArgv.command;
-
+    // console.log("vvv", isInteractive);
     const die: Fail = (
       message: string,
       { cause, help = true }: { cause?: unknown; help?: boolean } = {}
     ) => {
       if (verboseErrors !== undefined && verboseErrors) {
+        console.log("throwing error");
         throw (cause as Error) || new Error(message);
       }
       logger.error?.(colors.red(message));
@@ -224,6 +225,7 @@ export function createCli<R extends AnyRouter>({
         parsedArgv.showHelp();
       }
       if (!isInteractive) {
+        console.log("exiting");
         _process.exit(1);
       }
     };
@@ -296,7 +298,7 @@ export function createCli<R extends AnyRouter>({
     }
 
     const procedureInfo = command && procedureMap[command];
-
+    // console.log(procedureInfo);
     if (!procedureInfo) {
       const name = JSON.stringify(command || parsedArgv._[0]);
       const message = name
@@ -305,14 +307,14 @@ export function createCli<R extends AnyRouter>({
       return die(message);
     }
 
-    if (Object.entries(parsedArgv.unknownFlags).length > 0) {
-      const s = Object.entries(parsedArgv.unknownFlags).length === 1 ? "" : "s";
-      return die(
-        `Unexpected flag${s}: ${Object.keys(parsedArgv.unknownFlags).join(
-          ", "
-        )}`
-      );
-    }
+    // if (Object.entries(parsedArgv.unknownFlags).length > 0) {
+    //   const s = Object.entries(parsedArgv.unknownFlags).length === 1 ? "" : "s";
+    //   return die(
+    //     `Unexpected flag${s}: ${Object.keys(parsedArgv.unknownFlags).join(
+    //       ", "
+    //     )}`
+    //   );
+    // }
 
     const incompatibleMessages = procedureInfo.incompatiblePairs
       .filter(([a, b]) => a in flags && b in flags)
@@ -331,16 +333,23 @@ export function createCli<R extends AnyRouter>({
     }) as never;
 
     try {
-      // console.log("TRPC-CLI running command", procedureInfo);
+      // console.log("TRPC-CLI running command", procedureInfo, input);
       const result: unknown = await (
-        caller[procedureInfo.name][procedureInfo.type] as Function
+        caller[procedureInfo.name][
+          procedureInfo.type === "query" ? "query" : "mutate"
+        ] as Function
       )(input);
       if (result) logger.info?.(result);
-      if (!parsedArgv.flags.interactive) {
+      const isInteractive =
+        parsedArgv.flags.interactive ||
+        parsedArgv._.length === 0 ||
+        !parsedArgv.command;
+      if (!isInteractive) {
         process.exit(0);
       }
     } catch (err) {
-      throw transformError(err, die);
+      console.log("zzz", err);
+      // throw transformError(err, die);
     }
   }
 
@@ -409,6 +418,8 @@ export function createCli<R extends AnyRouter>({
         undefined,
         inputArgv
       );
+
+      // console.log(parsedArgv);
 
       parsedArgv.flags.interactive = true;
 

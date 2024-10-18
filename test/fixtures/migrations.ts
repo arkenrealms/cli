@@ -1,5 +1,6 @@
 import { createCli, type TrpcCliMeta, trpcServer, z } from "../../src";
 import * as trpcCompat from "../../src/trpc-compat";
+import { link } from "../../src/router";
 
 const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
@@ -97,6 +98,7 @@ const router = trpc.router({
 
 const cli = createCli({
   router,
+  link,
   alias: (fullName, { command }) => {
     if (fullName === "status") {
       return "s";

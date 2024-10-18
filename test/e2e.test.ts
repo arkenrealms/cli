@@ -33,6 +33,7 @@ test("cli help", async () => {
 
     Flags:
       -h, --help                  Show help
+          --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
     "
   `);
@@ -50,6 +51,7 @@ test("cli help add", async () => {
 
     Flags:
       -h, --help        Show help
+          --interactive Enter interactive mode
     "
   `);
 });
@@ -66,6 +68,7 @@ test("cli help divide", async () => {
 
     Flags:
       -h, --help        Show help
+      --interactive     Enter interactive mode
 
     Examples:
       divide --left 8 --right 4
@@ -92,6 +95,7 @@ test("cli add failure", async () => {
 
     Flags:
       -h, --help        Show help
+      --interactive     Enter interactive mode
     "
   `);
 });
@@ -115,6 +119,7 @@ test("cli divide failure", async () => {
 
     Flags:
       -h, --help        Show help
+      --interactive     Enter interactive mode
 
     Examples:
       divide --left 8 --right 4
@@ -134,6 +139,7 @@ test("cli non-existent command", async () => {
 
     Flags:
       -h, --help                  Show help
+          --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
     "
   `);
@@ -151,6 +157,7 @@ test("cli no command", async () => {
 
     Flags:
       -h, --help                  Show help
+          --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
     "
   `);
@@ -168,6 +175,7 @@ test("migrations help", async () => {
 
     Flags:
       -h, --help                  Show help
+          --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
     "
   `);
@@ -263,6 +271,7 @@ test("migrations incompatible flags", async () => {
 
     Flags:
       -h, --help                 Show help
+          --interactive          Enter interactive mode
           --step <number>        Mark this many migrations as executed; Exclusive Minimum: 0
           --to <string>          Mark migrations up to this one as executed
     "
@@ -278,6 +287,7 @@ test("fs help", async () => {
 
     Flags:
       -h, --help                  Show help
+          --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
     "
   `);
@@ -349,6 +359,7 @@ test("fs copy", async () => {
 
     Flags:
       -h, --help                     Show help
+          --interactive              Enter interactive mode
           --ignore-whitespace        Ignore whitespace changes
           --trim                     Trim start/end whitespace
     "

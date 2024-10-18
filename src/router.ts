@@ -15,6 +15,10 @@ import {
   createRouter as createSeerRouter,
   Router as SeerRouter,
 } from "@arken/seer-protocol";
+import {
+  createRouter as createCerebroRouter,
+  Router as CerebroRouter,
+} from "@arken/cerebro-protocol";
 import { io as ioClient } from "socket.io-client";
 import { serialize, deserialize } from "@arken/node/util/rpc";
 import { generateShortId } from "@arken/node/util/db";
@@ -37,6 +41,7 @@ type MergedRouter = {
   relay: RelayRouter;
   evolution: EvolutionRouter;
   seer: SeerRouter;
+  cerebro: CerebroRouter;
 };
 
 // Initialize tRPC with the merged context if needed
@@ -59,6 +64,7 @@ export const router = t.router<MergedRouter>({
   relay: createRelayRouter(),
   evolution: createEvolutionRouter(),
   seer: createSeerRouter(),
+  cerebro: createCerebroRouter(),
 });
 
 export type AppRouter = typeof router;
@@ -137,6 +143,7 @@ const backends: BackendConfig[] = [
   { name: "relay", url: "http://localhost:8020" },
   { name: "evolution", url: "http://localhost:4010" },
   { name: "seer", url: "http://localhost:7060" },
+  { name: "cerebro", url: "http://localhost:9010" },
 ];
 
 // Initialize socket clients for each backend
@@ -241,7 +248,7 @@ backends.forEach((backend) => {
 // Combined TRPC Link
 // ======================
 
-export const combinedLink: TRPCLink<any> =
+export const link: TRPCLink<any> =
   () =>
   ({ op, next }) => {
     // Extract the router namespace from the operation path
@@ -300,11 +307,11 @@ export const combinedLink: TRPCLink<any> =
           client.ioCallbacks[uuid] = {
             timeout,
             resolve: (response) => {
-              // console.log(
-              //   `[${routerName} Link] Callback resolved:`,
-              //   uuid,
-              //   response
-              // );
+              console.log(
+                `[${routerName} Link] Callback resolved:`,
+                uuid,
+                response
+              );
               clearTimeout(timeout);
               if (response.error) {
                 observer.error(response.error);
@@ -361,9 +368,9 @@ export const combinedLink: TRPCLink<any> =
 // Create a single tRPC instance
 
 // Create the tRPC client with the combined link
-export const trpcClient = createTRPCProxyClient<AppRouter>({
-  links: [combinedLink],
-});
+// export const trpcClient = createTRPCProxyClient<AppRouter>({
+//   links: [link],
+// });
 
 // export const trpcClient = trpc.createClient({
 //   links: [combinedLink],

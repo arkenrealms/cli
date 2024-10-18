@@ -3,6 +3,7 @@ import stripAnsi from "strip-ansi";
 import { expect, test } from "vitest";
 import { z } from "zod";
 import { createCli, type TrpcCliMeta, type TrpcCliParams } from "../src";
+import { link } from "../src/router";
 
 expect.addSnapshotSerializer({
   test: (val): val is Error => val instanceof Error,
@@ -20,7 +21,7 @@ expect.addSnapshotSerializer({
 const t = initTRPC.meta<TrpcCliMeta>().create();
 
 const run = <R extends Router<any>>(router: R, argv: string[]) => {
-  return runWith({ router }, argv);
+  return runWith({ router, link }, argv);
 };
 
 const runWith = <R extends Router<any>>(
