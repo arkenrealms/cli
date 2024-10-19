@@ -8,6 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
+      - run: npm install -g @microsoft/rush
       - run: rush install
       - run: rush update
       - run: rushx build
@@ -18,5 +19,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: corepack enable
+      - run: npm install -g @microsoft/rush
       - run: rush add -p @trpc/server@next
       - run: rushx test e2e
