@@ -307,11 +307,11 @@ export const link: TRPCLink<any> =
           client.ioCallbacks[uuid] = {
             timeout,
             resolve: (response) => {
-              console.log(
-                `[${routerName} Link] Callback resolved:`,
-                uuid,
-                response
-              );
+              // console.log(
+              //   `[${routerName} Link] Callback resolved:`,
+              //   uuid,
+              //   response
+              // );
               clearTimeout(timeout);
               if (response.error) {
                 observer.error(response.error);

@@ -5,6 +5,7 @@ import colors from "picocolors";
 import { ZodError } from "zod";
 import { type JsonSchema7Type } from "zod-to-json-schema";
 import * as zodValidationError from "zod-validation-error";
+import argv from "string-argv";
 import { createTRPCProxyClient } from "@trpc/client";
 import {
   flattenedProperties,
@@ -138,11 +139,16 @@ export function createCli<R extends AnyRouter>({
             }
             description ||= undefined;
 
+            // Determine if the flag should accept multiple values
+            const isMultiple =
+              Array.isArray(cleyeType) || propertyValue.type === "array";
+
             return [
               propertyKey,
               {
                 type: cleyeType,
                 description,
+                multiple: isMultiple, // Set 'multiple' to true for array types
                 // @ts-ignore
                 default: propertyValue.default as {},
               },
@@ -173,6 +179,8 @@ export function createCli<R extends AnyRouter>({
       params.default &&
       cleyeCommands.find(({ name }) => name === params.default?.procedure);
 
+    const rawArgs = runParams?.argv || process.argv.slice(2);
+
     const parsedArgv = cleye.cli(
       {
         flags: {
@@ -193,7 +201,7 @@ export function createCli<R extends AnyRouter>({
           .map((cmd) => cleye.command(cmd)) as cleye.Command[],
       },
       undefined,
-      runParams?.argv
+      rawArgs
     );
 
     const { verboseErrors: _verboseErrors, ...unknownFlags } =
@@ -271,6 +279,7 @@ export function createCli<R extends AnyRouter>({
       verboseErrors,
       cleyeCommands,
       params,
+      rawArgs,
     }: {
       caller: any;
       die: Fail;
@@ -283,13 +292,14 @@ export function createCli<R extends AnyRouter>({
       verboseErrors: boolean;
       cleyeCommands: CleyeCommandOptions[];
       params: TrpcCliParams<R>;
+      rawArgs: string[]; // Add rawArgs to the parameter list
     }
   ) {
     let { help, ...flags } = parsedArgv.flags;
 
     flags = Object.fromEntries(
       Object.entries(flags as {}).filter(([_k, v]) => v !== undefined)
-    ); // Cleye returns undefined for flags which didn't receive a value
+    ); // Remove undefined flags
 
     let command = parsedArgv.command as string | undefined;
 
@@ -298,7 +308,6 @@ export function createCli<R extends AnyRouter>({
     }
 
     const procedureInfo = command && procedureMap[command];
-    // console.log(procedureInfo);
     if (!procedureInfo) {
       const name = JSON.stringify(command || parsedArgv._[0]);
       const message = name
@@ -307,15 +316,7 @@ export function createCli<R extends AnyRouter>({
       return die(message);
     }
 
-    // if (Object.entries(parsedArgv.unknownFlags).length > 0) {
-    //   const s = Object.entries(parsedArgv.unknownFlags).length === 1 ? "" : "s";
-    //   return die(
-    //     `Unexpected flag${s}: ${Object.keys(parsedArgv.unknownFlags).join(
-    //       ", "
-    //     )}`
-    //   );
-    // }
-
+    // Handle incompatible flag pairs
     const incompatibleMessages = procedureInfo.incompatiblePairs
       .filter(([a, b]) => a in flags && b in flags)
       .map(
@@ -327,13 +328,44 @@ export function createCli<R extends AnyRouter>({
       return die(incompatibleMessages.join("\n"));
     }
 
+    // Manually collect multiple values for flags that accept arrays
+    const flagDefinitions = cleyeCommands.find(
+      (cmd) => cmd.name === procedureInfo.name
+    )?.flags as Record<string, CleyeFlag>;
+
+    // Iterate over the flag definitions to handle multiple values
+    for (const [flagName, flagDef] of Object.entries(flagDefinitions)) {
+      if (flagDef.multiple) {
+        // Collect all values for this flag
+        const collectedValues = [];
+        for (let i = 0; i < rawArgs.length; i++) {
+          const arg = rawArgs[i];
+          if (
+            arg === `--${flagName}` ||
+            (flagDef.alias && arg === `-${flagDef.alias}`)
+          ) {
+            // Collect values until the next flag or end of input
+            for (let j = i + 1; j < rawArgs.length; j++) {
+              const nextArg = rawArgs[j];
+              if (nextArg.startsWith("--") || nextArg.startsWith("-")) {
+                break; // Stop at the next flag
+              }
+              collectedValues.push(nextArg);
+            }
+          }
+        }
+        if (collectedValues.length > 0) {
+          flags[flagName] = collectedValues;
+        }
+      }
+    }
+
     const input = procedureInfo.jsonSchema.getInput({
       _: parsedArgv._,
       flags,
     }) as never;
 
     try {
-      // console.log("TRPC-CLI running command", procedureInfo, input);
       const result: unknown = await (
         caller[procedureInfo.name][
           procedureInfo.type === "query" ? "query" : "mutate"
@@ -348,8 +380,7 @@ export function createCli<R extends AnyRouter>({
         process.exit(0);
       }
     } catch (err) {
-      console.log("zzz", err);
-      // throw transformError(err, die);
+      throw transformError(err, die);
     }
   }
 
@@ -393,7 +424,7 @@ export function createCli<R extends AnyRouter>({
     rl.prompt();
 
     rl.on("line", async (line: string) => {
-      const inputArgv = line.trim().split(/\s+/);
+      const inputArgv = argv(line);
 
       if (inputArgv.length === 0 || !inputArgv[0]) {
         rl.prompt();
@@ -432,6 +463,7 @@ export function createCli<R extends AnyRouter>({
           verboseErrors,
           cleyeCommands,
           params,
+          rawArgs: inputArgv, // Pass inputArgv as rawArgs
         });
       } catch (err) {
         // Handle errors in interactive mode
@@ -503,6 +535,7 @@ function getCleyeType(
 ): Extract<CleyeFlag, { type: unknown }>["type"] {
   const _type =
     "type" in schema && typeof schema.type === "string" ? schema.type : null;
+
   switch (_type) {
     case "string": {
       return String;
@@ -515,7 +548,16 @@ function getCleyeType(
       return Boolean;
     }
     case "array": {
-      return [String];
+      // Determine the item type
+      // if (
+      //   "items" in schema &&
+      //   schema.items &&
+      //   typeof schema.items === "object"
+      // ) {
+      //   const itemType = getCleyeType(schema.items as JsonSchema7Type);
+      //   return [itemType];
+      // }
+      return [String]; // Default to [String] if item type is not specified
     }
     case "object": {
       return (s: string) => JSON.parse(s) as {};

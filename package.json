@@ -54,6 +54,7 @@
     "pkg-pr-new": "^0",
     "strip-ansi": "^7",
     "tsx": "^4",
-    "vitest": "^2"
+    "vitest": "^2",
+    "string-argv": "~0.3.2"
   }
 }
