@@ -170,15 +170,10 @@ export function createCli<R extends AnyRouter>({
 
     // Detect and reconstruct shorthand syntax
     const commandName = 'cerebro.exec'; // Replace with your actual command name
-    let commandIndex = inputArgv.findIndex((arg) => arg === commandName);
-
-    if (commandIndex === -1) {
-      // Command name not found, handle error or set default
-      commandIndex = 0;
-    }
+    let shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
 
     // Reconstruct shorthand command from arguments after the command name
-    const shorthandResult = reconstructShorthandCommand(inputArgv.slice(commandIndex + 1));
+    const shorthandResult = reconstructShorthandCommand(inputArgv.slice(shorthandIndex));
     if (shorthandResult) {
       const { shorthandCommand, remainingArgs } = shorthandResult;
       // Parse the shorthand command
