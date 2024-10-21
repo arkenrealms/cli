@@ -1,36 +1,30 @@
-import { initTRPC } from "@trpc/server";
-import { observable } from "@trpc/server/observable";
+import { initTRPC } from '@trpc/server';
+import { observable } from '@trpc/server/observable';
 
-import { createTRPCProxyClient, TRPCClientError } from "@trpc/client";
-import { createTRPCReact, TRPCLink } from "@trpc/react-query";
-import {
-  createRouter as createRelayRouter,
-  Router as RelayRouter,
-} from "@arken/node/router";
+import { createTRPCProxyClient, TRPCClientError } from '@trpc/client';
+import { createTRPCReact, TRPCLink } from '@trpc/react-query';
+import { createRouter as createRelayRouter, Router as RelayRouter } from '@arken/node/router';
 import {
   createRouter as createEvolutionRouter,
   Router as EvolutionRouter,
-} from "@arken/evolution-protocol/realm/realm.router";
-import {
-  createRouter as createSeerRouter,
-  Router as SeerRouter,
-} from "@arken/seer-protocol";
+} from '@arken/evolution-protocol/realm/realm.router';
+import { createRouter as createSeerRouter, Router as SeerRouter } from '@arken/seer-protocol';
 import {
   createRouter as createCerebroRouter,
   Router as CerebroRouter,
-} from "@arken/cerebro-protocol";
-import { io as ioClient } from "socket.io-client";
-import { serialize, deserialize } from "@arken/node/util/rpc";
-import { generateShortId } from "@arken/node/util/db";
+} from '@arken/cerebro-protocol';
+import { io as ioClient } from 'socket.io-client';
+import { serialize, deserialize } from '@arken/node/util/rpc';
+import { generateShortId } from '@arken/node/util/db';
 
-import ApplicationService from "./modules/application/application.service";
-import { createRouter as createApplicationRouter } from "./modules/application/application.router";
-import ConfigService from "./modules/config/config.service";
-import { createRouter as createConfigRouter } from "./modules/config/config.router";
-import MathService from "./modules/math/math.service";
-import { createRouter as createMathRouter } from "./modules/math/math.router";
-import HelpService from "./modules/help/help.service";
-import { createRouter as createHelpRouter } from "./modules/help/help.router";
+import ApplicationService from './modules/application/application.service';
+import { createRouter as createApplicationRouter } from './modules/application/application.router';
+import ConfigService from './modules/config/config.service';
+import { createRouter as createConfigRouter } from './modules/config/config.router';
+import MathService from './modules/math/math.service';
+import { createRouter as createMathRouter } from './modules/math/math.router';
+import HelpService from './modules/help/help.service';
+import { createRouter as createHelpRouter } from './modules/help/help.router';
 
 // Define the merged router type
 type MergedRouter = {
@@ -101,7 +95,7 @@ function waitUntil(
       if (predicate()) {
         resolve();
       } else if (Date.now() - startTime >= timeoutMs) {
-        reject(new Error("Timeout waiting for condition"));
+        reject(new Error('Timeout waiting for condition'));
       } else {
         setTimeout(checkCondition, intervalMs);
       }
@@ -116,7 +110,7 @@ function waitUntil(
  */
 export const handleTRPCError = (
   error: any,
-  message = "There was an error while performing your request"
+  message = 'There was an error while performing your request'
 ) => {
   try {
     const parsedError = JSON.parse(error.message);
@@ -136,14 +130,14 @@ type BackendConfig = {
 };
 
 const backends: BackendConfig[] = [
-  { name: "application" },
-  { name: "config" },
-  { name: "math" },
-  { name: "help" },
-  { name: "relay", url: "http://localhost:8020" },
-  { name: "evolution", url: "http://localhost:4010" },
-  { name: "seer", url: "http://localhost:7060" },
-  { name: "cerebro", url: "http://localhost:9010" },
+  { name: 'application' },
+  { name: 'config' },
+  { name: 'math' },
+  { name: 'help' },
+  { name: 'relay', url: 'http://localhost:8020' },
+  { name: 'evolution', url: 'http://localhost:4010' },
+  { name: 'seer', url: 'http://localhost:7060' },
+  { name: 'cerebro', url: 'http://localhost:9010' },
 ];
 
 // Initialize socket clients for each backend
@@ -174,7 +168,7 @@ backends.forEach((backend) => {
     const client: Client = {
       ioCallbacks: {},
       socket: ioClient(backend.url, {
-        transports: ["websocket"],
+        transports: ['websocket'],
         upgrade: false,
         autoConnect: true, // Consider setting to false and connecting manually if needed
       }),
@@ -185,7 +179,7 @@ backends.forEach((backend) => {
       try {
         // console.log(`[${backend.name} Socket] Event:`, eventName, res);
 
-        if (eventName === "Events") return;
+        if (eventName === 'Events') return;
 
         const { id } = res;
 
@@ -204,29 +198,23 @@ backends.forEach((backend) => {
 
             delete client.ioCallbacks[id];
           } else {
-            console.warn(
-              `[${backend.name} Socket] No callback found for ID: ${id}`
-            );
+            console.warn(`[${backend.name} Socket] No callback found for ID: ${id}`);
           }
         } else {
           const { method, params } = res;
 
-          console.log(
-            `[${backend.name} Socket] TRPC method called:`,
-            method,
-            params
-          );
+          console.log(`[${backend.name} Socket] TRPC method called:`, method, params);
 
           try {
             // Implement your method handling logic here
             const result = {}; // Replace with actual result
 
-            client.socket.emit("trpcResponse", {
+            client.socket.emit('trpcResponse', {
               id,
               result: serialize(result),
             });
           } catch (e) {
-            client.socket.emit("trpcResponse", {
+            client.socket.emit('trpcResponse', {
               id,
               result: {},
               error: e.message,
@@ -240,7 +228,7 @@ backends.forEach((backend) => {
 
     clients[backend.name] = client;
   } catch (e) {
-    console.log("Failed to setup trpc backend", backend.url);
+    console.log('Failed to setup trpc backend', backend.url);
   }
 });
 
@@ -252,12 +240,9 @@ export const link: TRPCLink<any> =
   () =>
   ({ op, next }) => {
     // Extract the router namespace from the operation path
-    const [routerName, ...restPath] = op.path.split(".");
+    const [routerName, ...restPath] = op.path.split('.');
 
-    if (
-      !routerName ||
-      !backends.some((backend) => backend.name === routerName)
-    ) {
+    if (!routerName || !backends.some((backend) => backend.name === routerName)) {
       return observable((observer) => {
         observer.error(new TRPCClientError(`Unknown router: ${routerName}`));
         observer.complete();
@@ -275,24 +260,21 @@ export const link: TRPCLink<any> =
         if (client) {
           op.context.client = client;
           // @ts-ignore
-          op.context.client.roles = ["admin", "user", "guest"];
+          op.context.client.roles = ['admin', 'user', 'guest'];
 
           try {
             await waitUntil(() => !!client?.socket?.emit, 60 * 1000);
           } catch (error: any) {
-            console.log(
-              `[${routerName} Link] Emit failed, no socket connection in time`,
-              op
-            );
+            console.log(`[${routerName} Link] Emit failed, no socket connection in time`, op);
             observer.error(new TRPCClientError(error.message));
             return;
           }
 
           // console.log(`[${routerName} Link] Emit Direct:`, op, client.socket);
 
-          client.socket.emit("trpc", {
+          client.socket.emit('trpc', {
             id: uuid,
-            method: op.path.replace(routerName + ".", ""),
+            method: op.path.replace(routerName + '.', ''),
             type: op.type,
             params: serialize(input),
           });
@@ -313,14 +295,16 @@ export const link: TRPCLink<any> =
               //   response
               // );
               clearTimeout(timeout);
-              if (response.error) {
-                observer.error(response.error);
+              const result =
+                typeof response.result === 'string'
+                  ? deserialize(response.result)
+                  : response.result;
+
+              if (result.error) {
+                observer.error(result.error);
               } else {
                 observer.next({
-                  result:
-                    typeof response.result === "string"
-                      ? deserialize(response.result)
-                      : response.result,
+                  result,
                 });
                 observer.complete();
               }
@@ -340,7 +324,7 @@ export const link: TRPCLink<any> =
           //     .createCallerFactory as CreateCallerFactoryLike);
 
           // const caller = createCallerFactory(router)();
-          const methodName = op.path.replace(routerName + ".", "");
+          const methodName = op.path.replace(routerName + '.', '');
 
           // console.log(
           //   "Calling local router",
