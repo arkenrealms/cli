@@ -35,6 +35,7 @@ export interface TrpcCli {
       exit: (code: number) => never;
     };
   }) => Promise<void>;
+  executeCommand: any;
   ignoredProcedures: { procedure: string; reason: string }[];
 }
 
@@ -231,7 +232,13 @@ export function createCli<R extends AnyRouter>({
     type Context = NonNullable<typeof params.context>;
 
     const caller = createTRPCProxyClient<R>({
-      links: [link],
+      links: [
+        link({
+          app: {
+            run: (commandString) => run({ argv: argv(commandString), logger, process }),
+          },
+        }),
+      ],
     });
     // console.log("argv", parsedArgv);
     // Adjust the die function to handle interactive mode
@@ -557,7 +564,7 @@ export function createCli<R extends AnyRouter>({
     });
   }
 
-  return { run, ignoredProcedures };
+  return { run, executeCommand, ignoredProcedures };
 }
 
 function reconstructShorthandCommand(

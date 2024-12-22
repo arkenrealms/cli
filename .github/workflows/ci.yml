@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v4
       - run: corepack enable
       - run: npm install -g @microsoft/rush
-      - run: git clone https://github.com/arken-engineering/arken.git
+      - run: git clone https://github.com/arkenrealms/arken.git
       - run: cd arken
       - run: rush install
       - run: rush update

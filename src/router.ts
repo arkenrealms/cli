@@ -8,6 +8,14 @@ import {
   createRouter as createEvolutionRouter,
   Router as EvolutionRouter,
 } from '@arken/evolution-protocol/realm/realm.router';
+// import {
+//   createRouter as createIslesRouter,
+//   Router as IslesRouter,
+// } from '@arken/meme-isles-protocol/realm/realm.router';
+// import {
+//   createRouter as createOasisRouter,
+//   Router as OasisRouter,
+// } from '@arken/oasis-protocol/realm/realm.router';
 import { createRouter as createSeerRouter, Router as SeerRouter } from '@arken/seer-protocol';
 import {
   createRouter as createCerebroRouter,
@@ -25,6 +33,8 @@ import MathService from './modules/math/math.service';
 import { createRouter as createMathRouter } from './modules/math/math.router';
 import HelpService from './modules/help/help.service';
 import { createRouter as createHelpRouter } from './modules/help/help.router';
+import TestService from './modules/test/test.service';
+import { createRouter as createTestRouter } from './modules/test/test.router';
 
 // Define the merged router type
 type MergedRouter = {
@@ -32,8 +42,11 @@ type MergedRouter = {
   config: ReturnType<typeof createConfigRouter>;
   math: ReturnType<typeof createMathRouter>;
   help: ReturnType<typeof createHelpRouter>;
+  test: ReturnType<typeof createTestRouter>;
   relay: RelayRouter;
   evolution: EvolutionRouter;
+  // isles: IslesRouter;
+  // oasis: OasisRouter;
   seer: SeerRouter;
   cerebro: CerebroRouter;
 };
@@ -41,6 +54,7 @@ type MergedRouter = {
 // Initialize tRPC with the merged context if needed
 export const t = initTRPC
   .context<{
+    app: any;
     // Define any shared context here if necessary
   }>()
   .create();
@@ -49,17 +63,29 @@ const applicationRouter = createApplicationRouter(new ApplicationService());
 const configRouter = createConfigRouter(new ConfigService());
 const mathRouter = createMathRouter(new MathService());
 const helpRouter = createHelpRouter(new HelpService());
+const testRouter = createTestRouter(new TestService());
 
 export const router = t.router<MergedRouter>({
   application: applicationRouter,
   config: configRouter,
   math: mathRouter,
   help: helpRouter,
+  test: testRouter,
   relay: createRelayRouter(),
   evolution: createEvolutionRouter(),
+  // isles: createIslesRouter(),
+  // oasis: createOasisRouter(),
   seer: createSeerRouter(),
   cerebro: createCerebroRouter(),
 });
+
+const routers: any = {
+  application: applicationRouter,
+  config: configRouter,
+  math: mathRouter,
+  help: helpRouter,
+  test: testRouter,
+};
 
 export type AppRouter = typeof router;
 
@@ -134,8 +160,11 @@ const backends: BackendConfig[] = [
   { name: 'config' },
   { name: 'math' },
   { name: 'help' },
+  { name: 'test' },
   { name: 'relay', url: 'http://localhost:8020' },
+  { name: 'isles', url: 'http://localhost:4510' },
   { name: 'evolution', url: 'http://localhost:4010' },
+  { name: 'oasis', url: 'http://localhost:3010' },
   { name: 'seer', url: 'http://localhost:7060' },
   { name: 'cerebro', url: 'http://localhost:9010' },
 ];
@@ -154,12 +183,6 @@ type Client = {
 };
 
 const clients: Record<string, Client> = {};
-const callers: any = {
-  application: t.createCallerFactory(applicationRouter)({}),
-  config: t.createCallerFactory(configRouter)({}),
-  math: t.createCallerFactory(mathRouter)({}),
-  help: t.createCallerFactory(helpRouter)({}),
-};
 
 backends.forEach((backend) => {
   if (!backend.url) return;
@@ -237,6 +260,7 @@ backends.forEach((backend) => {
 // ======================
 
 export const link: TRPCLink<any> =
+  (ctx: any) =>
   () =>
   ({ op, next }) => {
     // Extract the router namespace from the operation path
@@ -270,7 +294,7 @@ export const link: TRPCLink<any> =
             return;
           }
 
-          // console.log(`[${routerName} Link] Emit Direct:`, op, client.socket);
+          // console.log(`[${routerName} Link] Emit Direct:`, op);
 
           client.socket.emit('trpc', {
             id: uuid,
@@ -288,23 +312,21 @@ export const link: TRPCLink<any> =
 
           client.ioCallbacks[uuid] = {
             timeout,
-            resolve: (response) => {
+            resolve: (pack) => {
               // console.log(
               //   `[${routerName} Link] Callback resolved:`,
               //   uuid,
-              //   response
+              //   pack
               // );
               clearTimeout(timeout);
               const result =
-                typeof response.result === 'string'
-                  ? deserialize(response.result)
-                  : response.result;
+                typeof pack.result === 'string' ? deserialize(pack.result) : pack.result;
 
-              if (result.error) {
-                observer.error(result.error);
+              if (result?.error) {
+                observer.error(result?.error);
               } else {
                 observer.next({
-                  result,
+                  result: result ? result : { data: undefined },
                 });
                 observer.complete();
               }
@@ -335,7 +357,9 @@ export const link: TRPCLink<any> =
           //   callers[routerName][methodName]
           // );
 
-          const res = await callers[routerName][methodName](input);
+          const caller = t.createCallerFactory(routers[routerName])(ctx);
+
+          const res = await caller[methodName](input);
 
           console.log(res);
         }

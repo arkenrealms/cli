@@ -1,15 +1,14 @@
 import { type TrpcCliMeta, trpcServer, z } from '../../';
-import Service from './help.service';
+import Service from './test.service';
 
 const trpc = trpcServer.initTRPC.meta<TrpcCliMeta>().create();
 
 export function createRouter(service: Service) {
   return trpc.router({
-    man: trpc.procedure
+    evolution: trpc.procedure
       .meta({
-        description: 'Gets the manual for a subject.',
+        description: 'Test evo',
       })
-      .input(z.tuple([z.string()]))
-      .query(({ input }) => service.man(input)),
+      .query(({ input, ctx }) => service.evolution(input, ctx)),
   });
 }

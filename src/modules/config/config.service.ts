@@ -1,8 +1,8 @@
-import fs from "fs";
-import path from "path";
-import { TRPCError } from "@trpc/server";
+import fs from 'fs';
+import path from 'path';
+import { TRPCError } from '@trpc/server';
 
-const CONFIG_PATH = path.resolve(__dirname, "../../../arken.config.json");
+const CONFIG_PATH = path.resolve(__dirname, '../../../arken.config.json');
 
 type Config = {
   option?: {
@@ -13,33 +13,33 @@ type Config = {
 
 function checkConfigFileExists() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    console.log("No configuration file found.");
+    console.log('No configuration file found.');
     process.exit(1);
   }
 
-  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-  console.log("Current Configuration:");
+  const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+  console.log('Current Configuration:');
   console.log(JSON.stringify(config, null, 2));
 }
 
 export default class Service {
-  async list({ input }) {
+  async list(input) {
     checkConfigFileExists();
 
-    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
-    console.log("Current Configuration:");
+    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    console.log('Current Configuration:');
     console.log(JSON.stringify(config, null, 2));
   }
 
-  async set({ input }) {
+  async set(input) {
     const [key, value] = input;
 
     checkConfigFileExists();
 
-    if (key !== "metaverse") {
+    if (key !== 'metaverse') {
       // console.log(`Invalid key. Only "metaverse" can be set.`);
       throw new TRPCError({
-        code: "BAD_REQUEST",
+        code: 'BAD_REQUEST',
         message: `Invalid key. Only "metaverse" can be set.`,
       });
       return;
@@ -47,16 +47,16 @@ export default class Service {
 
     if (!value) {
       throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Value for metaverse is required.",
+        code: 'BAD_REQUEST',
+        message: 'Value for metaverse is required.',
       });
     }
 
     let config: Config = {};
     if (fs.existsSync(CONFIG_PATH)) {
-      config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+      config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
     } else {
-      throw new Error("Config file does not exist.");
+      throw new Error('Config file does not exist.');
     }
 
     // Ensure that the config object has an "option" key

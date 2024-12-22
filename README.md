@@ -7,40 +7,61 @@ Run `rush update`
 Try out:
 
 ```bash
+rushx dev
+
+# OR
+
 rushx cli config.list
-rushx cli config.set metaverse Arken
-rushx cli application.create ABC
-rushx cli math.add 1 1
-rushx cli help.man cerebro
-rushx cli seer.info # calls Seer service
+
+# OR
 
 ./bin/arken config.list
-./bin/arken config.set metaverse Arken
-./bin/arken application.create ABC
-./bin/arken math.add 1 1
-./bin/arken help.man cerebro
 ```
 
-TODO:
+## Usage
+
+### Commands
+
+| Command              | Alias       | Description                                                 |
+| -------------------- | ----------- | ----------------------------------------------------------- |
+| `config.list`        | `cls`       | Get the list of config variables.                           |
+| `config.set`         | `cset`      | Sets the current metaverse/omniverse.                       |
+| `application.create` | `appcreate` | Creates an application for the current metaverse/omniverse. |
 
 ```bash
-./bin/arken ask "Some question here"
-./bin/arken omniverse.set `{ where: { key: { equals: "arken" } } }`
-./bin/arken metaverse.set `{ where: { key: { equals: "arken" } } }`
-./bin/arken application.set `{ where: { name: { equals: "Arken" } } }`
-./bin/arken product.set `{ where: { key: { equals: "arken-isles" } } }`
-./bin/arken game.set `{ where: { key: { equals: "arken-isles" } } }`
-./bin/arken game.getEras
-./bin/arken game.getEra `{ where: { name: { equals: "Prehistory" } } }`
-./bin/arken agent.create AgentName
-./bin/arken agent.call AgentName MethodName Param1 Param2 Param3
-./bin/arken agent.call hisoka run
-./bin/arken agent.call hisoka fetchAndProcessVideos H3AZiZUzglE
-./bin/arken evolution.info
-./bin/arken evolution.auth
-./bin/arken evolution.connectSeer
-./bin/arken evolution.createShard
-./bin/arken evolution.getShards `{ where: { realmId: { equals: "REALM ID HERE" } } }`
+config.list
+config.set metaverse Arken
+application.create ABC
+math.add 1 1
+help.man cerebro
+ask "Some question here"
+omniverse.set `{ where: { key: { equals: "arken" } } }`
+metaverse.set `{ where: { key: { equals: "arken" } } }`
+application.set `{ where: { name: { equals: "Arken" } } }`
+product.set `{ where: { key: { equals: "arken-isles" } } }`
+game.set `{ where: { key: { equals: "arken-isles" } } }`
+game.getEras
+game.getEra `{ where: { name: { equals: "Prehistory" } } }`
+evolution.info
+evolution.auth
+evolution.connectSeer
+evolution.createShard
+evolution.getShards `{ where: { realmId: { equals: "REALM ID HERE" } } }`
+oasis.info
+oasis.auth --token TOKEN_HERE
+oasis.connectSeer
+oasis.createShard
+oasis.getShards `{ where: { realmId: { equals: "REALM ID HERE" } } }`
+cerebro.createAgent AgentName
+cerebro.exec --agent AgentName --method MethodName --params Param1 --params Param2 --params Param3
+cerebro.exec --agent AgentName --method MethodName --params Param1 Param2 Param3
+cerebro.exec --agent Hisoka --method run
+cerebro.exec --agent Hisoka --method fetchAndProcessVideos --params H3AZiZUzglE
+cerebro.exec Hisoka.run()
+cerebro.exec Hisoka.fetchAndProcessVideos("H3AZiZUzglE")
+cerebro.exec --agent Gon --method ask --params "calculate 1+1" "you always reply with a smile"
+cerebro.exec Gon.ask("calculate 1+1", "you always reply with a smile")
+Gon.ask("calculate 1+1", "you always reply with a smile")
 ```
 
 Run the individual module CLI:

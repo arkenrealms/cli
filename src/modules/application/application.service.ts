@@ -1,8 +1,8 @@
-import fs from "fs";
-import path from "path";
-import { prompt } from "enquirer";
+import fs from 'fs';
+import path from 'path';
+import { prompt } from 'enquirer';
 
-const CONFIG_PATH = path.resolve(__dirname, "../../../arken.config.json");
+const CONFIG_PATH = path.resolve(__dirname, '../../../arken.config.json');
 
 type Config = {
   option?: {
@@ -12,13 +12,13 @@ type Config = {
 };
 
 export default class Service {
-  async create({ input }) {
+  async create(input) {
     const [name] = input;
     const loadConfig = (): Config => {
       if (fs.existsSync(CONFIG_PATH)) {
-        return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf-8"));
+        return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
       }
-      throw new Error("Config file does not exist.");
+      throw new Error('Config file does not exist.');
     };
 
     const saveConfig = (config: Config) => {
@@ -27,9 +27,9 @@ export default class Service {
 
     const promptMetaverse = async (): Promise<string> => {
       const response = await prompt<{ metaverse: string }>({
-        type: "input",
-        name: "metaverse",
-        message: "No metaverse is set. Please enter the metaverse name:",
+        type: 'input',
+        name: 'metaverse',
+        message: 'No metaverse is set. Please enter the metaverse name:',
       });
       return response.metaverse;
     };

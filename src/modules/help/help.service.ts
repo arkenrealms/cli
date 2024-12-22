@@ -1,5 +1,5 @@
 export default class Service {
-  async man({ input }) {
-    return "x";
+  async man(input) {
+    return 'x';
   }
 }
