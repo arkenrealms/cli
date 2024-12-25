@@ -163,10 +163,12 @@ const backends: BackendConfig[] = [
   { name: 'test' },
   { name: 'relay', url: 'http://localhost:8020' },
   { name: 'isles', url: 'http://localhost:4510' },
-  { name: 'evolution', url: 'http://localhost:4010' },
   { name: 'oasis', url: 'http://localhost:3010' },
-  { name: 'seer', url: 'http://localhost:7060' },
   { name: 'cerebro', url: 'http://localhost:9010' },
+  // { name: 'seer', url: 'http://localhost:7060' },
+  // { name: 'evolution', url: 'http://localhost:4010' },
+  { name: 'seer', url: 'https://hoff.arken.gg:7061' },
+  { name: 'evolution', url: 'https://hoff.arken.gg:4011' },
 ];
 
 // Initialize socket clients for each backend
