@@ -260,6 +260,20 @@ backends.forEach((backend) => {
 // ======================
 // Combined TRPC Link
 // ======================
+const getNestedMethod = (obj, path) => {
+  const res = path.split('.').reduce((current, key) => {
+    if (current[key] === undefined) {
+      throw new Error(`Method "${key}" not found in path "${path}"`);
+    }
+    return current[key];
+  }, obj);
+
+  if (typeof res !== 'function') {
+    throw new Error(`"${path}" is not a function`);
+  }
+
+  return res;
+};
 
 export const link: TRPCLink<any> =
   (ctx: any) =>
@@ -274,6 +288,8 @@ export const link: TRPCLink<any> =
         observer.complete();
       });
     }
+
+    console.log(routerName);
 
     const client = clients[routerName];
 
@@ -296,7 +312,7 @@ export const link: TRPCLink<any> =
             return;
           }
 
-          // console.log(`[${routerName} Link] Emit Direct:`, op);
+          console.log(`[${routerName} Link] Emit Direct:`, op);
 
           client.socket.emit('trpc', {
             id: uuid,
@@ -348,20 +364,24 @@ export const link: TRPCLink<any> =
           //     .createCallerFactory as CreateCallerFactoryLike);
 
           // const caller = createCallerFactory(router)();
-          const methodName = op.path.replace(routerName + '.', '');
+          const methodPath = op.path.replace(routerName + '.', '');
 
-          // console.log(
-          //   "Calling local router",
-          //   routerName,
-          //   methodName,
-          //   op.type,
-          //   input,
-          //   callers[routerName][methodName]
-          // );
+          console.log(
+            'Calling local router',
+            routerName,
+            methodPath,
+            op.type,
+            input,
+            routers[routerName]
+          );
 
           const caller = t.createCallerFactory(routers[routerName])(ctx);
 
-          const res = await caller[methodName](input);
+          const method = getNestedMethod(caller, methodPath);
+
+          // const caller = t.createCallerFactory(routers[routerName])(ctx);
+
+          const res = await method(input);
 
           console.log(res);
         }

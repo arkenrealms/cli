@@ -375,6 +375,8 @@ export function createCli<R extends AnyRouter>({
       command = parsedArgv._[0];
     }
 
+    if (command.includes('(')) command = command.split('(')[0];
+
     const procedureInfo = command && procedureMap[command];
     if (!procedureInfo) {
       const name = JSON.stringify(command || parsedArgv._[0]);
@@ -419,10 +421,12 @@ export function createCli<R extends AnyRouter>({
       }
     }
 
-    const input = procedureInfo.jsonSchema.getInput({
-      _: parsedArgv._,
-      flags,
-    }) as never;
+    const input = parsedArgv._?.[0]?.includes('(')
+      ? JSON.parse(parsedArgv._?.[0].replace(command, '').replace('(', '').replace(')', ''))
+      : (procedureInfo.jsonSchema.getInput({
+          _: parsedArgv._,
+          flags,
+        }) as never);
 
     try {
       const result: unknown = await (
