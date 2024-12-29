@@ -9,3 +9,7 @@ coverage
 .DS_Store
 
 arken.db*
+
+secrets.json
+
+.env

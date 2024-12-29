@@ -36,6 +36,9 @@ import { createRouter as createHelpRouter } from './modules/help/help.router';
 import TestService from './modules/test/test.service';
 import { createRouter as createTestRouter } from './modules/test/test.router';
 
+import dotEnv from 'dotenv';
+dotEnv.config();
+
 // Define the merged router type
 type MergedRouter = {
   application: ReturnType<typeof createApplicationRouter>;
@@ -43,7 +46,6 @@ type MergedRouter = {
   math: ReturnType<typeof createMathRouter>;
   help: ReturnType<typeof createHelpRouter>;
   test: ReturnType<typeof createTestRouter>;
-  relay: RelayRouter;
   evolution: EvolutionRouter;
   // isles: IslesRouter;
   // oasis: OasisRouter;
@@ -71,7 +73,6 @@ export const router = t.router<MergedRouter>({
   math: mathRouter,
   help: helpRouter,
   test: testRouter,
-  relay: createRelayRouter(),
   evolution: createEvolutionRouter(),
   // isles: createIslesRouter(),
   // oasis: createOasisRouter(),
@@ -154,21 +155,18 @@ type BackendConfig = {
   name: string;
   url?: string;
 };
-
+console.log(process.env);
 const backends: BackendConfig[] = [
   { name: 'application' },
   { name: 'config' },
   { name: 'math' },
   { name: 'help' },
   { name: 'test' },
-  { name: 'relay', url: 'http://localhost:8020' },
-  { name: 'isles', url: 'http://localhost:4510' },
-  { name: 'oasis', url: 'http://localhost:3010' },
-  { name: 'cerebro', url: 'http://localhost:9010' },
-  // { name: 'seer', url: 'http://localhost:7060' },
-  // { name: 'evolution', url: 'http://localhost:4010' },
-  { name: 'seer', url: 'https://hoff.arken.gg:7061' },
-  { name: 'evolution', url: 'https://hoff.arken.gg:4011' },
+  { name: 'isles', url: process.env.ISLES_SERVICE_URI },
+  { name: 'oasis', url: process.env.OASIS_SERVICE_URI },
+  { name: 'cerebro', url: process.env.CEREBRO_SERVICE_URI },
+  { name: 'seer', url: process.env.SEER_SERVICE_URI },
+  { name: 'evolution', url: process.env.EVOLUTION_SERVICE_URI },
 ];
 
 // Initialize socket clients for each backend

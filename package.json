@@ -9,7 +9,7 @@
     "test:watch": "jest --watch --collect-coverage --config=jest.unit.config.js",
     "test:coverage": "jest --coverage",
     "lint": "eslint --max-warnings=0 .",
-    "dev": "cd src && tsx cli.ts --interactive",
+    "dev": "tsx -r dotenv/config -r tsconfig-paths/register ./src/cli.ts  --interactive",
     "cli": "cd src && tsx cli.ts",
     "cli:math": "cd test/fixtures && tsx math.ts",
     "cli:fs": "cd test/fixtures && tsx fs.ts",
@@ -42,6 +42,7 @@
     "@trpc/server": "next",
     "commander": "^12",
     "enquirer": "^2",
+    "ts-node-dev": "^2",
     "cleye": "^1",
     "picocolors": "^1",
     "zod-to-json-schema": "^3",
@@ -55,6 +56,7 @@
     "strip-ansi": "^7",
     "tsx": "^4",
     "vitest": "^2",
-    "string-argv": "~0.3.2"
+    "string-argv": "~0.3.2",
+    "dotenv": "^16"
   }
 }
