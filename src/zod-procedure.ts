@@ -1,13 +1,10 @@
-import { z } from "zod";
-import zodToJsonSchema from "zod-to-json-schema";
-import type { Result, ParsedProcedure } from "./types";
-import { looksLikeInstanceof } from "./util";
+import { z } from 'zod';
+import zodToJsonSchema from 'zod-to-json-schema';
+import type { Result, ParsedProcedure } from './types';
+import { looksLikeInstanceof } from './util';
 
 function getInnerType(zodType: z.ZodType): z.ZodType {
-  if (
-    looksLikeInstanceof(zodType, z.ZodOptional) ||
-    looksLikeInstanceof(zodType, z.ZodNullable)
-  ) {
+  if (looksLikeInstanceof(zodType, z.ZodOptional) || looksLikeInstanceof(zodType, z.ZodNullable)) {
     return getInnerType(zodType._def.innerType as z.ZodType);
   }
   if (looksLikeInstanceof(zodType, z.ZodEffects)) {
@@ -16,9 +13,7 @@ function getInnerType(zodType: z.ZodType): z.ZodType {
   return zodType;
 }
 
-export function parseProcedureInputs(
-  inputs: unknown[]
-): Result<ParsedProcedure> {
+export function parseProcedureInputs(inputs: unknown[]): Result<ParsedProcedure> {
   if (inputs.length === 0) {
     return {
       success: true,
@@ -27,17 +22,14 @@ export function parseProcedureInputs(
   }
 
   const allZodTypes = inputs.every((input) =>
-    looksLikeInstanceof(
-      input,
-      z.ZodType as new (...args: unknown[]) => z.ZodType
-    )
+    looksLikeInstanceof(input, z.ZodType as new (...args: unknown[]) => z.ZodType)
   );
   if (!allZodTypes) {
     return {
       success: false,
       error: `Invalid input type ${inputs
         .map((s) => (s as {})?.constructor.name)
-        .join(", ")}, only zod inputs are supported`,
+        .join(', ')}, only zod inputs are supported`,
     };
   }
 
@@ -62,7 +54,7 @@ export function parseProcedureInputs(
     return parseArrayInput(mergedSchema);
   }
 
-  if (!acceptsObject(mergedSchema)) {
+  if (!acceptsObject(mergedSchema) && !acceptsAny(mergedSchema)) {
     return {
       success: false,
       error: `Invalid input type ${
@@ -81,11 +73,9 @@ export function parseProcedureInputs(
   };
 }
 
-function parseLiteralInput(
-  schema: z.ZodType<string> | z.ZodType<number>
-): Result<ParsedProcedure> {
+function parseLiteralInput(schema: z.ZodType<string> | z.ZodType<number>): Result<ParsedProcedure> {
   const type = acceptedLiteralTypes(schema).at(0);
-  const name = schema.description || type || "value";
+  const name = schema.description || type || 'value';
   return {
     success: true,
     value: {
@@ -97,10 +87,10 @@ function parseLiteralInput(
 }
 
 function acceptedLiteralTypes(schema: z.ZodType) {
-  const types: Array<"string" | "number" | "boolean"> = [];
-  if (acceptsBoolean(schema)) types.push("boolean");
-  if (acceptsNumber(schema)) types.push("number");
-  if (acceptsString(schema)) types.push("string");
+  const types: Array<'string' | 'number' | 'boolean'> = [];
+  if (acceptsBoolean(schema)) types.push('boolean');
+  if (acceptsNumber(schema)) types.push('number');
+  if (acceptsString(schema)) types.push('string');
   return types;
 }
 
@@ -111,19 +101,15 @@ function parseMultiInputs(inputs: z.ZodType[]): Result<ParsedProcedure> {
       success: false,
       error: `Invalid multi-input type ${inputs
         .map((s) => getInnerType(s).constructor.name)
-        .join(", ")}. All inputs must accept object inputs.`,
+        .join(', ')}. All inputs must accept object inputs.`,
     };
   }
 
-  const parsedIndividually = inputs.map((input) =>
-    parseProcedureInputs([input])
-  );
+  const parsedIndividually = inputs.map((input) => parseProcedureInputs([input]));
 
-  const failures = parsedIndividually.flatMap((p) =>
-    p.success ? [] : [p.error]
-  );
+  const failures = parsedIndividually.flatMap((p) => (p.success ? [] : [p.error]));
   if (failures.length > 0) {
-    return { success: false, error: failures.join("\n") };
+    return { success: false, error: failures.join('\n') };
   }
 
   return {
@@ -141,9 +127,7 @@ function parseMultiInputs(inputs: z.ZodType[]): Result<ParsedProcedure> {
   };
 }
 
-function parseArrayInput(
-  array: z.ZodArray<z.ZodType>
-): Result<ParsedProcedure> {
+function parseArrayInput(array: z.ZodArray<z.ZodType>): Result<ParsedProcedure> {
   if (looksLikeInstanceof(array.element, z.ZodNullable)) {
     return {
       success: false,
@@ -157,15 +141,12 @@ function parseArrayInput(
     value: {
       parameters: [],
       flagsSchema: {},
-      getInput: (argv) =>
-        argv._.map((s) => convertPositional(array.element, s)),
+      getInput: (argv) => argv._.map((s) => convertPositional(array.element, s)),
     },
   };
 }
 
-function parseTupleInput(
-  tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>
-): Result<ParsedProcedure> {
+function parseTupleInput(tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>): Result<ParsedProcedure> {
   const nonPositionalIndex = tuple.items.findIndex((item) => {
     if (acceptedLiteralTypes(item).length > 0) {
       return false; // it's a string, number or boolean
@@ -178,14 +159,9 @@ function parseTupleInput(
     }
     return true; // it's not a string, number, boolean or array of strings, numbers or booleans. So it's probably a flags object
   });
-  const types = `[${tuple.items
-    .map((s) => getInnerType(s).constructor.name)
-    .join(", ")}]`;
+  const types = `[${tuple.items.map((s) => getInnerType(s).constructor.name).join(', ')}]`;
 
-  if (
-    nonPositionalIndex > -1 &&
-    nonPositionalIndex !== tuple.items.length - 1
-  ) {
+  if (nonPositionalIndex > -1 && nonPositionalIndex !== tuple.items.length - 1) {
     return {
       success: false,
       error: `Invalid input type ${types}. Positional parameters must be strings, numbers or booleans.`,
@@ -193,17 +169,10 @@ function parseTupleInput(
   }
 
   const positionalSchemas =
-    nonPositionalIndex === -1
-      ? tuple.items
-      : tuple.items.slice(0, nonPositionalIndex);
+    nonPositionalIndex === -1 ? tuple.items : tuple.items.slice(0, nonPositionalIndex);
 
-  const parameterNames = positionalSchemas.map((item, i) =>
-    parameterName(item, i + 1)
-  );
-  const postionalParametersToTupleInput = (argv: {
-    _: string[];
-    flags: {};
-  }) => {
+  const parameterNames = positionalSchemas.map((item, i) => parameterName(item, i + 1));
+  const postionalParametersToTupleInput = (argv: { _: string[]; flags: {} }) => {
     if (
       positionalSchemas.length === 1 &&
       looksLikeInstanceof<z.ZodArray<never>>(positionalSchemas[0], z.ZodArray)
@@ -211,9 +180,7 @@ function parseTupleInput(
       const element = positionalSchemas[0].element;
       return [argv._.map((s) => convertPositional(element, s))];
     }
-    return positionalSchemas.map((schema, i) =>
-      convertPositional(schema, argv._[i])
-    );
+    return positionalSchemas.map((schema, i) => convertPositional(schema, argv._[i]));
   };
 
   if (positionalSchemas.length === tuple.items.length) {
@@ -242,10 +209,7 @@ function parseTupleInput(
     value: {
       parameters: parameterNames,
       flagsSchema: zodToJsonSchema(last),
-      getInput: (argv) => [
-        ...postionalParametersToTupleInput(argv),
-        argv.flags,
-      ],
+      getInput: (argv) => [...postionalParametersToTupleInput(argv), argv.flags],
     },
   };
 }
@@ -259,19 +223,19 @@ const convertPositional = (schema: z.ZodType, value: string) => {
   let preprocessed: string | number | boolean | undefined = undefined;
 
   const acceptedTypes = new Set(acceptedLiteralTypes(schema));
-  if (acceptedTypes.has("boolean")) {
-    if (value === "true") preprocessed = true;
-    else if (value === "false") preprocessed = false;
+  if (acceptedTypes.has('boolean')) {
+    if (value === 'true') preprocessed = true;
+    else if (value === 'false') preprocessed = false;
   }
 
-  if (acceptedTypes.has("number") && !schema.safeParse(preprocessed).success) {
+  if (acceptedTypes.has('number') && !schema.safeParse(preprocessed).success) {
     const number = Number(value);
     if (!Number.isNaN(number)) {
       preprocessed = Number(value);
     }
   }
 
-  if (acceptedTypes.has("string") && !schema.safeParse(preprocessed).success) {
+  if (acceptedTypes.has('string') && !schema.safeParse(preprocessed).success) {
     // it's possible we converted to a number prematurely - need to account for `z.union([z.string(), z.number().int()])`, where 1.2 should be a string, not a number
     // in that case, we would have set preprocessed to a number, but it would fail validation, so we need to reset it to a string here
     preprocessed = value;
@@ -285,7 +249,7 @@ const convertPositional = (schema: z.ZodType, value: string) => {
     return preprocessed; // we converted successfully, and the type looks good, so use the preprocessed value
   }
 
-  if (acceptedTypes.has("string")) {
+  if (acceptedTypes.has('string')) {
     return value; // we converted successfully, but the type is wrong. However strings are also accepted, so return the string original value, it might be ok.
   }
 
@@ -299,8 +263,7 @@ const parameterName = (s: z.ZodType, position: number): string => {
     return `[${elementName.slice(1, -1)}...]`;
   }
   // cleye requiremenets: no special characters in positional parameters; `<name>` for required and `[name]` for optional parameters
-  const name =
-    s.description || `parameter ${position}`.replaceAll(/\W+/g, " ").trim();
+  const name = s.description || `parameter ${position}`.replaceAll(/\W+/g, ' ').trim();
   return s.isOptional() ? `[${name}]` : `<${name}>`;
 };
 
@@ -323,27 +286,16 @@ const parameterName = (s: z.ZodType, position: number): string => {
 export function accepts<ZodTarget extends z.ZodType>(target: ZodTarget) {
   const test = (zodType: z.ZodType): boolean => {
     const innerType = getInnerType(zodType);
-    if (
-      looksLikeInstanceof(
-        innerType,
-        target.constructor as new (...args: unknown[]) => ZodTarget
-      )
-    )
+    if (looksLikeInstanceof(innerType, target.constructor as new (...args: unknown[]) => ZodTarget))
       return true;
     if (looksLikeInstanceof(innerType, z.ZodLiteral))
       return target.safeParse(innerType.value).success;
     if (looksLikeInstanceof(innerType, z.ZodEnum))
       return innerType.options.some((o) => target.safeParse(o).success);
-    if (looksLikeInstanceof(innerType, z.ZodUnion))
-      return innerType.options.some(test);
+    if (looksLikeInstanceof(innerType, z.ZodUnion)) return innerType.options.some(test);
     if (looksLikeInstanceof<z.ZodEffects<z.ZodType>>(innerType, z.ZodEffects))
       return test(innerType.innerType());
-    if (
-      looksLikeInstanceof<z.ZodIntersection<z.ZodType, z.ZodType>>(
-        innerType,
-        z.ZodIntersection
-      )
-    )
+    if (looksLikeInstanceof<z.ZodIntersection<z.ZodType, z.ZodType>>(innerType, z.ZodIntersection))
       return test(innerType._def.left) && test(innerType._def.right);
 
     return false;
@@ -355,3 +307,4 @@ const acceptsString = accepts(z.string());
 const acceptsNumber = accepts(z.number());
 const acceptsBoolean = accepts(z.boolean());
 const acceptsObject = accepts(z.object({}));
+const acceptsAny = accepts(z.any());

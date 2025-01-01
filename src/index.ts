@@ -59,6 +59,7 @@ export function createCli<R extends AnyRouter>({
         procedure._def.inputs as unknown[]
       );
       if (!procedureResult.success) {
+        console.log("Couldn't parse procedure: ", name, procedureResult.error);
         // @ts-ignore
         return [name, procedureResult.error] as const;
       }
@@ -170,7 +171,7 @@ export function createCli<R extends AnyRouter>({
     let inputArgv = rawArgs.slice(); // Copy the raw arguments
 
     // Detect and reconstruct shorthand syntax
-    const commandName = 'cerebro.exec'; // Replace with your actual command name
+    const commandName = inputArgv[0]; // 'cerebro.exec'; // Replace with your actual command name
     let shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
 
     // Reconstruct shorthand command from arguments after the command name
@@ -421,8 +422,12 @@ export function createCli<R extends AnyRouter>({
       }
     }
 
-    const input = parsedArgv._?.[0]?.includes('(')
-      ? JSON.parse(parsedArgv._?.[0].replace(command, '').replace('(', '').replace(')', ''))
+    const isFunc = parsedArgv._?.[0]?.includes('(');
+    const fullCommand = isFunc ? parsedArgv._?.join(' ') : parsedArgv._?.[0];
+
+    console.log('Full command', fullCommand);
+    const input = isFunc
+      ? JSON.parse(fullCommand.replace(command, '').replace('(', '').replace(')', ''))
       : (procedureInfo.jsonSchema.getInput({
           _: parsedArgv._,
           flags,
@@ -486,7 +491,7 @@ export function createCli<R extends AnyRouter>({
       let inputArgv = argv(line);
 
       // Detect and reconstruct shorthand syntax
-      const commandName = 'cerebro.exec'; // Replace with your actual command name
+      const commandName = inputArgv[0]; // 'cerebro.exec'; // Replace with your actual command name
       let shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
 
       // Reconstruct shorthand command from arguments after the command name

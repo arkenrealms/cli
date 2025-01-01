@@ -73,11 +73,13 @@ export const router = t.router<MergedRouter>({
   math: mathRouter,
   help: helpRouter,
   test: testRouter,
+  cerebro: createCerebroRouter(),
+  seer: createSeerRouter(),
   evolution: createEvolutionRouter(),
+  'seer-prod': createSeerRouter(),
+  'evolution-prod': createEvolutionRouter(),
   // isles: createIslesRouter(),
   // oasis: createOasisRouter(),
-  seer: createSeerRouter(),
-  cerebro: createCerebroRouter(),
 });
 
 const routers: any = {
@@ -165,8 +167,10 @@ const backends: BackendConfig[] = [
   { name: 'isles', url: process.env.ISLES_SERVICE_URI },
   { name: 'oasis', url: process.env.OASIS_SERVICE_URI },
   { name: 'cerebro', url: process.env.CEREBRO_SERVICE_URI },
-  { name: 'seer', url: process.env.SEER_SERVICE_URI },
-  { name: 'evolution', url: process.env.EVOLUTION_SERVICE_URI },
+  { name: 'seer', url: process.env.LOCAL_SEER_SERVICE_URI },
+  { name: 'evolution', url: process.env.LOCAL_EVOLUTION_SERVICE_URI },
+  { name: 'seer-prod', url: process.env.PROD_SEER_SERVICE_URI },
+  { name: 'evolution-prod', url: process.env.PROD_EVOLUTION_SERVICE_URI },
 ];
 
 // Initialize socket clients for each backend
