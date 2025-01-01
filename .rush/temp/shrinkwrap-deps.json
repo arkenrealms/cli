@@ -1,5 +1,5 @@
 {
-  "../../packages/cli": "../../packages/cli:rcn9hgFoAiK7R/rBVuY7KGutzNsKHyiSbT8R+aw2PZ4=:",
+  "../../packages/cli": "../../packages/cli:6M+alf0aXRrx3CxrHaSL5LcwTYdy6MWIGh4ucC/UfwQ=:",
   "/@ampproject/remapping/2.3.0": "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==",
   "/@babel/code-frame/7.24.7": "sha512-BcYH1CVJBO9tvyIZ2jVeXgSIMvGZ2FDRvDdOIVQyuklNKSsx+eppDEBq/g47Ayw+RqNFE+URvOShmf+f/qwAlA==",
   "/@babel/compat-data/7.25.2": "sha512-bYcppcpKBvX4znYaPEeFau03bp89ShqNMLs+rmdptMw+heSZh9+z84d2YG+K7cYLbWwzdjtDoW/uqZmPjulClQ==",
@@ -173,8 +173,8 @@
   "/@sindresorhus/merge-streams/4.0.0": "sha512-tlqY9xq5ukxTUZBmoOp+m61cqwQD5pHJtFY3Mn8CA8ps6yghLH/Hw8UPdqg4OLmFW3IFlcXnQNmo/dh8HzXYIQ==",
   "/@sinonjs/commons/3.0.1": "sha512-K3mCHKQ9sVh8o1C9cxkwxaOmXoAMlDxC1mYyHrjqOWEcBjYr76t96zL2zlj5dUGZ3HSw240X1qgH3Mjf1yJWpQ==",
   "/@sinonjs/fake-timers/10.3.0": "sha512-V4BG07kuYSUkTCSBHG8G8TNhM+F19jXFWnQtzj+we8DrkpSBCee9Z3Ms8yiGer/dlmhe35/Xdgyo3/0rQKg7YA==",
-  "/@trpc/client/11.0.0-rc.682_993c0605ec9b6ca9d57b6d834a88a705": "sha512-zfM6t4tkbQPm/FHK85jcJjJle7FJTj9U8t/ieDzIe3X6DNo66sg6KqQpjkeTJcaj5u2hga1lmv3rc4uob/7D0g==",
-  "/@trpc/server/11.0.0-rc.682_typescript@5.5.4": "sha512-y8FhLW/UJ8SOyHByvSQW7WvCnbvYioOYhviWD+sRvqkB9f0O8/sEBPJt1mBadWaO/0tygOghkeNC9o1wAsJ8cg==",
+  "/@trpc/client/11.0.0-rc.678_76bc3c3b5ef2d35b9f35786b7db79f9c": "sha512-Y3UawZReKGRDy0AnGlNRhqm8m0Rdp7BAvS4PylsO77Wx5Q775O6mruZGuW02IlFIFqmJCUM2/ykt1h8GaSndbw==",
+  "/@trpc/server/11.0.0-rc.678_typescript@5.5.4": "sha512-q5OEUV4aBfHPoV6uQAlNdkxmq6IizLtnblVs91jAXey3Mxquool05nYxnk8xH4n159e0IOSXEJsQfSZtOYlA5Q==",
   "/@tsconfig/node10/1.0.11": "sha512-DcRjDCujK/kCk/cUe8Xz8ZSpm8mS3mNNpta+jGCA6USEDfktlNvm1+IuZ9eTcDbNk41BHwpHHeW+N1lKCz4zOw==",
   "/@tsconfig/node12/1.0.11": "sha512-cqefuRsh12pWyGsIoBKJA9luFu3mRxCA+ORZvA4ktLSzIuCUtWVxGIuXigEwO5/ywWFMZ2QEGKWvkZG1zDMTag==",
   "/@tsconfig/node14/1.0.3": "sha512-ysT8mhdixWK6Hw3i1V2AeRqZ5WfXg1G43mqoYlM2nc6388Fq5jcXyr5mRsqViLx/GJYdoL0bfXD8nmF+Zn/Iow==",
