@@ -425,7 +425,7 @@ export function createCli<R extends AnyRouter>({
     const isFunc = parsedArgv._?.[0]?.includes('(');
     const fullCommand = isFunc ? parsedArgv._?.join(' ') : parsedArgv._?.[0];
 
-    console.log('Full command', fullCommand);
+    // console.log('Full command', fullCommand);
     const input = isFunc
       ? JSON.parse(fullCommand.replace(command, '').replace('(', '').replace(')', ''))
       : (procedureInfo.jsonSchema.getInput({
@@ -434,10 +434,13 @@ export function createCli<R extends AnyRouter>({
         }) as never);
 
     try {
-      const result: unknown = await (
+      const result: any = await (
         caller[procedureInfo.name][procedureInfo.type === 'query' ? 'query' : 'mutate'] as Function
       )(input);
-      if (result) logger.info?.(result);
+
+      // if (result) logger.info?.(result);
+      if (result?.message) console.log(result.message);
+
       const isInteractive =
         parsedArgv.flags.interactive || parsedArgv._.length === 0 || !parsedArgv.command;
       if (!isInteractive) {
