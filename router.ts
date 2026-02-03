@@ -300,8 +300,9 @@ export const link: TRPCLink<any> =
               clearTimeout(timeout);
               const result =
                 typeof pack.result === 'string' ? deserialize(pack.result) : pack.result;
-
-              if (result?.error) observer.error(result.error);
+              // console.log('pack', pack);
+              if (pack?.error) observer.error(pack.error);
+              else if (result?.error) observer.error(result.error);
               else {
                 observer.next({ result: { data: result ?? undefined } });
                 observer.complete();
