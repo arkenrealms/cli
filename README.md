@@ -2,6 +2,11 @@
 
 Run `rush update`
 
+## Local test-gate note (rotation automation)
+In this checkout, test execution is currently blocked until dependencies/workspace links are restored:
+- `rushx test` may fail if Rush cannot resolve all workspace packages.
+- `npm test` requires local `vitest` to be installed and available.
+
 ## Using Commands
 
 Try out:
