@@ -17,3 +17,11 @@
   - `npm test -- --runInBand` ❌ `vitest: command not found`
   - `rushx test` ❌ Rush workspace package-map drift (`@arken/cerebro-hub` expected at `arken/cerebro/hub/package.json`).
 - No source edits were made under the source-change test gate.
+
+## 2026-02-19 slot-12 follow-up
+- Re-ran branch hygiene (`git fetch origin` + merge `origin/main`) before any change.
+- Reconfirmed test gate is still blocked in this checkout:
+  - `npm test -- --runInBand` fails with `vitest: command not found`.
+  - `npm run test:jest -- --runInBand` fails with `jest: command not found`.
+- Left source untouched to satisfy source-change policy.
+- Next actionable unblock: install package dependencies in a workspace-valid way (`rush update` from repo root) so either test script becomes runnable before source edits.
