@@ -60,3 +60,10 @@
   - Added `isFlagToken(...)` in `index.ts` so only real flags terminate array-flag collection; hyphen-prefixed values like `-1`, `-2`, and `-1e3` are no longer misclassified as new flags.
   - Added `test/parsing.test.ts` coverage (`array flag accepts hyphen-prefixed values`) to enforce parsing with trailing flags in the same invocation.
 - This is a direct reliability fix (no router abstraction churn) and keeps CLI argument parsing behavior consistent when list-style flag values include signed/hyphenated tokens.
+
+## 2026-02-20 slot-11 follow-up (12:3x PT)
+- Rationale: array-flag parsing treated a lone hyphen (`-`) as a new short flag token, which truncated list capture and could drop valid stdin-style placeholder values.
+- Change scope:
+  - Updated `isFlagToken(...)` in `index.ts` so a single hyphen is treated as data (not a flag boundary) while preserving existing behavior for `--long` flags and short-flag tokens.
+  - Added `test/parsing.test.ts` coverage (`array flag accepts single hyphen value`) to lock end-to-end CLI parsing for `--values - -- literal --tag demo`.
+- Practical impact: list-style flags now reliably preserve hyphen sentinel values without introducing router-layer abstraction churn.

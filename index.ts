@@ -676,6 +676,7 @@ type Fail = (message: string, options?: { cause?: unknown; help?: boolean }) => 
 
 function isFlagToken(value: string): boolean {
   if (!value.startsWith('-')) return false;
+  if (value === '-') return false;
   if (value.startsWith('--')) return true;
 
   // Keep numeric literals (e.g. -1, -0.5, -1e3) as positional values for array inputs.
