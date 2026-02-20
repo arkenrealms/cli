@@ -292,7 +292,6 @@ export function createCli<R extends AnyRouter>({
       { cause, help = true }: { cause?: unknown; help?: boolean } = {}
     ) => {
       if (verboseErrors !== undefined && verboseErrors) {
-        console.log('throwing error');
         throw (cause as Error) || new Error(message);
       }
       logger.error?.(colors.red(message));

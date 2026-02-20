@@ -46,3 +46,10 @@
 - Updated CLI runtime output handling in `index.ts` to log non-undefined procedure results (`logger.info`) so README examples now return visible output again (for example `rushx cli math.add 1 1` returns `2`).
 - Verified direct CLI↔cerebro-link websocket flow with a live local server (`PORT=8081 rushx dev` in `cerebro/link` + `CEREBRO_SERVICE_URI=ws://127.0.0.1:8081 rushx cli cerebro.info` in `cli`) and confirmed expected payload output (`{"name":"Cerebro Link"}`).
 - Kept README command docs aligned with this checkout (`rushx cli ...` and `./bin/arken ...`; module paths under `modules/*`) so documented commands are executable as written.
+
+## 2026-02-20 slot-11 follow-up (08:32 PT)
+- Rationale: while validating the now-runnable `rushx test` gate, the CLI error path still emitted a stray debug line (`throwing error`) when `--verboseErrors` was used. That extra stdout noise can pollute automation and makes verbose mode less reliable.
+- Change scope:
+  - Removed the debug `console.log('throwing error')` side-effect from the verbose `die(...)` path in `index.ts`.
+  - Added `test/verbose-errors.test.ts` to lock expected behavior: verbose errors should throw, avoid forced process exit, and avoid debug-noise stdout.
+- This keeps behavior practical (no extra abstraction), aligns with reliability-first maintenance, and preserves explicit throw semantics in verbose mode.
