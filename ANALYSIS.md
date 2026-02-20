@@ -34,3 +34,10 @@
   - `npm test -- --runInBand` ❌ `vitest: command not found`
 - Left source files unchanged to preserve source-change gate compliance.
 - Next unblock step remains restoring a runnable repo-defined test command for this package in the current workspace runtime.
+
+## 2026-02-20 slot-11 follow-up (04:16 PT)
+- Reran required branch hygiene before attempting edits: `git fetch origin && git merge --no-edit origin/main` (clean on `origin/main` baseline).
+- Revalidated the repo-defined test command on Node `20.11.1`:
+  - `rushx test` ❌ fails immediately because tests import removed legacy paths (`../src`, `../src/router`, `../src/logging`, `../src/zod-procedure`).
+- Rationale for no source edits this slot: source-change gate requires passing validation in-run, but test harness currently fails before executing any assertions due broken import paths.
+- Next actionable unblock: migrate test imports/fixtures off `src/*` aliases to current flat layout (or add compatibility re-export shims) in one focused patch, then rerun `rushx test`.
