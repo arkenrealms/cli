@@ -238,13 +238,13 @@ export function createCli<R extends AnyRouter>({
           app: {
             run: (commandString) => run({ argv: argv(commandString), logger, process }),
           },
+          router,
         }),
       ],
     });
     // console.log("argv", parsedArgv);
     // Adjust the die function to handle interactive mode
-    const isInteractive =
-      parsedArgv.flags.interactive || parsedArgv._.length === 0 || !parsedArgv.command;
+    const isInteractive = parsedArgv.flags.interactive;
     // console.log("vvv", isInteractive);
     const die: Fail = (
       message: string,
@@ -376,7 +376,7 @@ export function createCli<R extends AnyRouter>({
       command = parsedArgv._[0];
     }
 
-    if (command.includes('(')) command = command.split('(')[0];
+    if (command?.includes('(')) command = command.split('(')[0];
 
     const procedureInfo = command && procedureMap[command];
     if (!procedureInfo) {
@@ -441,8 +441,7 @@ export function createCli<R extends AnyRouter>({
       // if (result) logger.info?.(result);
       if (result?.message) console.log(result.message);
 
-      const isInteractive =
-        parsedArgv.flags.interactive || parsedArgv._.length === 0 || !parsedArgv.command;
+      const isInteractive = parsedArgv.flags.interactive;
       if (!isInteractive) {
         process.exit(0);
       }

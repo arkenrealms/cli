@@ -1,3 +1,4 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env node
 
-require('../cli');
+require('tsx/cjs');
+require('../cli.ts');
