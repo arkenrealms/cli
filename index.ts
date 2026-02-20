@@ -448,6 +448,19 @@ export function createCli<R extends AnyRouter>({
         const collectedValues = [];
         for (let i = 0; i < rawArgs.length; i++) {
           const arg = rawArgs[i];
+          const longFlagWithValuePrefix = `--${flagName}=`;
+          const shortFlagWithValuePrefix = flagDef.alias ? `-${flagDef.alias}=` : null;
+
+          if (arg.startsWith(longFlagWithValuePrefix)) {
+            collectedValues.push(arg.slice(longFlagWithValuePrefix.length));
+            continue;
+          }
+
+          if (shortFlagWithValuePrefix && arg.startsWith(shortFlagWithValuePrefix)) {
+            collectedValues.push(arg.slice(shortFlagWithValuePrefix.length));
+            continue;
+          }
+
           if (arg === `--${flagName}` || (flagDef.alias && arg === `-${flagDef.alias}`)) {
             // Collect values until the next flag or end of input
             for (let j = i + 1; j < rawArgs.length; j++) {

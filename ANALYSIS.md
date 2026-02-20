@@ -67,3 +67,10 @@
   - Updated `isFlagToken(...)` in `index.ts` so a single hyphen is treated as data (not a flag boundary) while preserving existing behavior for `--long` flags and short-flag tokens.
   - Added `test/parsing.test.ts` coverage (`array flag accepts single hyphen value`) to lock end-to-end CLI parsing for `--values - -- literal --tag demo`.
 - Practical impact: list-style flags now reliably preserve hyphen sentinel values without introducing router-layer abstraction churn.
+
+## 2026-02-20 slot-11 follow-up (14:5x PT)
+- Rationale: list-style flags parsed from raw argv did not honor equals-assigned syntax (`--values=a`), so multi-value inputs could be silently dropped when callers used common CLI style instead of spaced tokens.
+- Change scope:
+  - Updated `index.ts` array-flag collection to capture both `--flag value` and `--flag=value` (including short-alias `-f=value`) for `multiple` flags.
+  - Added `test/parsing.test.ts` coverage (`array flag accepts equals-assigned values`) to lock behavior for repeated `--values=...` inputs with trailing flags.
+- Practical impact: array inputs now parse consistently across common flag styles without adding extra abstraction in router/procedure layers.

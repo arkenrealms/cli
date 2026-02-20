@@ -461,6 +461,31 @@ test("array flag accepts single hyphen value", async () => {
   );
 });
 
+test("array flag accepts equals-assigned values", async () => {
+  const router = t.router({
+    test: t.procedure
+      .input(
+        z.object({
+          values: z.array(z.string()),
+          tag: z.string().optional(),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await run(router, [
+    "test",
+    "--values=alpha",
+    "--values=beta",
+    "--tag",
+    "demo",
+  ]);
+
+  expect(result).toMatchInlineSnapshot(
+    `"{\"values\":[\"alpha\",\"beta\"],\"tag\":\"demo\"}"`
+  );
+});
+
 test("boolean array input", async () => {
   const router = t.router({
     test: t.procedure
