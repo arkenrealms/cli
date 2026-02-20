@@ -74,3 +74,15 @@
   - Updated `index.ts` array-flag collection to capture both `--flag value` and `--flag=value` (including short-alias `-f=value`) for `multiple` flags.
   - Added `test/parsing.test.ts` coverage (`array flag accepts equals-assigned values`) to lock behavior for repeated `--values=...` inputs with trailing flags.
 - Practical impact: array inputs now parse consistently across common flag styles without adding extra abstraction in router/procedure layers.
+
+## 2026-02-20 slot-12 websocket verification (15:1x PT)
+- Rationale: this workstream’s acceptance bar is operational reliability (README commands green + CLI↔cerebro-link tRPC websocket path stable), so this slot focused on concrete end-to-end execution checks rather than additional abstraction refactors.
+- Validation runbook/results (Node `20.11.1`, Rush scripts):
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` ✅ (all 61 tests passed)
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx cli config.list` ✅
+  - `source ~/.nvm/nvm.sh && nvm use 20 && ./bin/arken config.list` ✅
+  - with local bridge (`PORT=8082 rushx dev` in `cerebro/link`):
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8082 rushx cli cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8082 ./bin/arken cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8082 rushx cli cerebro.ask --mod math --messages 2+2` ✅ (echo payload returned)
+- Cross-repo transport checks were also rerun in `cerebro/link` (`rushx test` ✅ including callback settlement coverage) to confirm websocket request/response handling and callback cleanup behavior stay green.
