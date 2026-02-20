@@ -3,9 +3,9 @@
 Run `rush update`
 
 ## Local test-gate note (rotation automation)
-In this checkout, test execution is currently blocked until dependencies/workspace links are restored:
-- `rushx test` may fail if Rush cannot resolve all workspace packages.
-- `npm test` requires local `vitest` to be installed and available.
+Use Node 20 and Rush scripts in this workspace:
+- `source ~/.nvm/nvm.sh && nvm use 20`
+- `rushx test`
 
 ## Using Commands
 
@@ -72,9 +72,9 @@ Gon.ask("calculate 1+1", "you always reply with a smile")
 Run the individual module CLI:
 
 ```
-npx tsx src/modules/config/config.cli.ts list
-npx tsx src/modules/config/config.cli.ts set metaverse Arken
-npx tsx src/modules/application/application.cli.ts create ABC
-npx tsx src/modules/math/math.cli.ts add 1 1
-npx tsx src/modules/help/help.cli.ts man cerebro
+npx tsx modules/config/config.cli.ts list
+npx tsx modules/config/config.cli.ts set metaverse Arken
+npx tsx modules/application/application.cli.ts create ABC
+npx tsx modules/math/math.cli.ts add 1 1
+npx tsx modules/help/help.cli.ts man cerebro
 ```

@@ -10,7 +10,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint --max-warnings=0 .",
     "dev": "tsx -r dotenv/config -r tsconfig-paths/register ./cli.ts  --interactive",
-    "cli": "cd src && tsx cli.ts",
+    "cli": "tsx cli.ts",
     "cli:math": "cd test/fixtures && tsx math.ts",
     "cli:fs": "cd test/fixtures && tsx fs.ts",
     "cli:diff": "cd test/fixtures && tsx diff.ts",

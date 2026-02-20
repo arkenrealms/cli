@@ -41,3 +41,8 @@
   - `rushx test` ❌ fails immediately because tests import removed legacy paths (`../src`, `../src/router`, `../src/logging`, `../src/zod-procedure`).
 - Rationale for no source edits this slot: source-change gate requires passing validation in-run, but test harness currently fails before executing any assertions due broken import paths.
 - Next actionable unblock: migrate test imports/fixtures off `src/*` aliases to current flat layout (or add compatibility re-export shims) in one focused patch, then rerun `rushx test`.
+
+## 2026-02-20 websocket integration follow-up (06:22 PT)
+- Updated CLI runtime output handling in `index.ts` to log non-undefined procedure results (`logger.info`) so README examples now return visible output again (for example `rushx cli math.add 1 1` returns `2`).
+- Verified direct CLI↔cerebro-link websocket flow with a live local server (`PORT=8081 rushx dev` in `cerebro/link` + `CEREBRO_SERVICE_URI=ws://127.0.0.1:8081 rushx cli cerebro.info` in `cli`) and confirmed expected payload output (`{"name":"Cerebro Link"}`).
+- Kept README command docs aligned with this checkout (`rushx cli ...` and `./bin/arken ...`; module paths under `modules/*`) so documented commands are executable as written.

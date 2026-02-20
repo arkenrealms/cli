@@ -438,7 +438,7 @@ export function createCli<R extends AnyRouter>({
         caller[procedureInfo.name][procedureInfo.type === 'query' ? 'query' : 'mutate'] as Function
       )(input);
 
-      // if (result) logger.info?.(result);
+      if (result !== undefined) logger.info?.(result);
       if (result?.message) console.log(result.message);
 
       const isInteractive = parsedArgv.flags.interactive;
