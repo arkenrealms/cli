@@ -53,3 +53,10 @@
   - Removed the debug `console.log('throwing error')` side-effect from the verbose `die(...)` path in `index.ts`.
   - Added `test/verbose-errors.test.ts` to lock expected behavior: verbose errors should throw, avoid forced process exit, and avoid debug-noise stdout.
 - This keeps behavior practical (no extra abstraction), aligns with reliability-first maintenance, and preserves explicit throw semantics in verbose mode.
+
+## 2026-02-20 slot-11 follow-up (10:4x PT)
+- Rationale: array-valued flags in `executeCommand(...)` treated any token beginning with `-` as a new flag, so negative numeric values (for example `--values -1 -2`) were incorrectly dropped or misparsed.
+- Change scope:
+  - Added `isFlagToken(...)` in `index.ts` so only real flags terminate array-flag collection; hyphen-prefixed values like `-1`, `-2`, and `-1e3` are no longer misclassified as new flags.
+  - Added `test/parsing.test.ts` coverage (`array flag accepts hyphen-prefixed values`) to enforce parsing with trailing flags in the same invocation.
+- This is a direct reliability fix (no router abstraction churn) and keeps CLI argument parsing behavior consistent when list-style flag values include signed/hyphenated tokens.

@@ -452,7 +452,7 @@ export function createCli<R extends AnyRouter>({
             // Collect values until the next flag or end of input
             for (let j = i + 1; j < rawArgs.length; j++) {
               const nextArg = rawArgs[j];
-              if (nextArg.startsWith('--') || nextArg.startsWith('-')) {
+              if (isFlagToken(nextArg)) {
                 break; // Stop at the next flag
               }
               collectedValues.push(nextArg);
@@ -673,6 +673,14 @@ function reconstructShorthandCommand(
 }
 
 type Fail = (message: string, options?: { cause?: unknown; help?: boolean }) => void;
+
+function isFlagToken(value: string): boolean {
+  if (!value.startsWith('-')) return false;
+  if (value.startsWith('--')) return true;
+
+  // Keep numeric literals (e.g. -1, -0.5, -1e3) as positional values for array inputs.
+  return Number.isNaN(Number(value));
+}
 
 function transformError(err: unknown, fail: Fail): unknown {
   if (looksLikeInstanceof(err, Error) && err.message.includes('This is a client-only function')) {

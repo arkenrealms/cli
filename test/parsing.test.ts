@@ -408,6 +408,33 @@ test("number array input with constraints", async () => {
   `);
 });
 
+test("array flag accepts hyphen-prefixed values", async () => {
+  const router = t.router({
+    test: t.procedure
+      .input(
+        z.object({
+          values: z.array(z.string()),
+          tag: z.string().optional(),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await run(router, [
+    "test",
+    "--values",
+    "-1",
+    "-2",
+    "3",
+    "--tag",
+    "demo",
+  ]);
+
+  expect(result).toMatchInlineSnapshot(
+    `"{\"values\":[\"-1\",\"-2\",\"3\"],\"tag\":\"demo\"}"`
+  );
+});
+
 test("boolean array input", async () => {
   const router = t.router({
     test: t.procedure
