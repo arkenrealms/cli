@@ -12,6 +12,9 @@ Use Node 20 and Rush scripts in this workspace:
 Try out:
 
 ```bash
+source ~/.nvm/nvm.sh
+nvm use 20
+
 rushx dev
 
 # OR
@@ -21,6 +24,15 @@ rushx cli config.list
 # OR
 
 ./bin/arken config.list
+```
+
+### Cerebro link over tRPC websocket
+
+With `@arken/cerebro-link` running on `ws://127.0.0.1:8080`:
+
+```bash
+CEREBRO_SERVICE_URI=ws://127.0.0.1:8080 rushx cli cerebro.info
+CEREBRO_SERVICE_URI=ws://127.0.0.1:8080 ./bin/arken cerebro.info
 ```
 
 ## Usage
