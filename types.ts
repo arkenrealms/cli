@@ -3,7 +3,7 @@ import type { AnyRouter, CreateCallerFactoryLike, InferRouterContext } from './t
 
 export type TrpcCliParams<R extends AnyRouter> = {
   router: R;
-  link: any;
+  link?: any;
   context?: InferRouterContext<R>;
   alias?: (
     fullName: string,

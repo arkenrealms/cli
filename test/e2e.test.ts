@@ -46,12 +46,11 @@ test("cli help add", async () => {
 
     Add two numbers. Use this if you and your friend both have apples, and you want to know how many apples there are in total.
 
-    Usage:
+    USAGE:
       add [flags...] <parameter 1> <parameter 2>
 
-    Flags:
+    FLAGS:
       -h, --help        Show help
-          --interactive Enter interactive mode
     "
   `);
 });
@@ -63,14 +62,13 @@ test("cli help divide", async () => {
 
     Divide two numbers. Useful if you have a number and you want to make it smaller and \`subtract\` isn't quite powerful enough for you.
 
-    Usage:
+    USAGE:
       divide [flags...] <numerator> <denominator>
 
-    Flags:
+    FLAGS:
       -h, --help        Show help
-      --interactive     Enter interactive mode
 
-    Examples:
+    EXAMPLES:
       divide --left 8 --right 4
     "
   `);
@@ -90,12 +88,11 @@ test("cli add failure", async () => {
 
     Add two numbers. Use this if you and your friend both have apples, and you want to know how many apples there are in total.
 
-    Usage:
+    USAGE:
       add [flags...] <parameter 1> <parameter 2>
 
-    Flags:
+    FLAGS:
       -h, --help        Show help
-      --interactive     Enter interactive mode
     "
   `);
 });
@@ -114,14 +111,13 @@ test("cli divide failure", async () => {
 
     Divide two numbers. Useful if you have a number and you want to make it smaller and \`subtract\` isn't quite powerful enough for you.
 
-    Usage:
+    USAGE:
       divide [flags...] <numerator> <denominator>
 
-    Flags:
+    FLAGS:
       -h, --help        Show help
-      --interactive     Enter interactive mode
 
-    Examples:
+    EXAMPLES:
       divide --left 8 --right 4
     "
   `);
@@ -131,13 +127,13 @@ test("cli non-existent command", async () => {
   const output = await tsx("math", ["multiploo", "2", "3"]);
   expect(output).toMatchInlineSnapshot(`
     "Command not found: "multiploo".
-    Commands:
+    COMMANDS:
       add             Add two numbers. Use this if you and your friend both have apples, and you want to know how many apples there are in total.
       subtract        Subtract two numbers. Useful if you have a number and you want to make it smaller.
       multiply        Multiply two numbers together. Useful if you want to count the number of tiles on your bathroom wall and are short on time.
       divide          Divide two numbers. Useful if you have a number and you want to make it smaller and \`subtract\` isn't quite powerful enough for you.
 
-    Flags:
+    FLAGS:
       -h, --help                  Show help
           --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
@@ -149,13 +145,13 @@ test("cli no command", async () => {
   const output = await tsx("math", []);
   expect(output).toMatchInlineSnapshot(`
     "No command specified.
-    Commands:
+    COMMANDS:
       add             Add two numbers. Use this if you and your friend both have apples, and you want to know how many apples there are in total.
       subtract        Subtract two numbers. Useful if you have a number and you want to make it smaller.
       multiply        Multiply two numbers together. Useful if you want to count the number of tiles on your bathroom wall and are short on time.
       divide          Divide two numbers. Useful if you have a number and you want to make it smaller and \`subtract\` isn't quite powerful enough for you.
 
-    Flags:
+    FLAGS:
       -h, --help                  Show help
           --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
@@ -166,14 +162,14 @@ test("cli no command", async () => {
 test("migrations help", async () => {
   const output = await tsx("migrations", ["--help"]);
   expect(output).toMatchInlineSnapshot(`
-    "Commands:
+    "COMMANDS:
       up                      Apply migrations. By default all pending migrations will be applied.
       create                  Create a new migration
       list                    List all migrations
       search.byName           Look for migrations by name
       search.byContent        Look for migrations by their script content
 
-    Flags:
+    FLAGS:
       -h, --help                  Show help
           --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
@@ -210,10 +206,10 @@ test("migrations search.byName help", async () => {
 
     Look for migrations by name
 
-    Usage:
+    USAGE:
       search.byName [flags...]
 
-    Flags:
+    FLAGS:
       -h, --help                   Show help
           --name <string>          
       -s, --status <string>        Filter to only show migrations with this status; Enum: executed,pending
@@ -266,12 +262,11 @@ test("migrations incompatible flags", async () => {
 
     Apply migrations. By default all pending migrations will be applied.
 
-    Usage:
+    USAGE:
       up [flags...]
 
-    Flags:
+    FLAGS:
       -h, --help                 Show help
-          --interactive          Enter interactive mode
           --step <number>        Mark this many migrations as executed; Exclusive Minimum: 0
           --to <string>          Mark migrations up to this one as executed
     "
@@ -281,11 +276,11 @@ test("migrations incompatible flags", async () => {
 test("fs help", async () => {
   const output = await tsx("fs", ["--help"]);
   expect(output).toMatchInlineSnapshot(`
-    "Commands:
+    "COMMANDS:
       copy        
       diff        
 
-    Flags:
+    FLAGS:
       -h, --help                  Show help
           --interactive           Enter interactive mode
           --verbose-errors        Throw raw errors (by default errors are summarised)
@@ -298,10 +293,10 @@ test("fs copy help", async () => {
   expect(output).toMatchInlineSnapshot(`
     "copy
 
-    Usage:
+    USAGE:
       copy [flags...] <Source path> [Destination path]
 
-    Flags:
+    FLAGS:
           --force        Overwrite destination if it exists
       -h, --help         Show help
     "
@@ -350,36 +345,35 @@ test("fs copy", async () => {
   // Invalid enum value
   expect(await tsx("fs", ["diff", "one", "fileNotFound"]))
     .toMatchInlineSnapshot(`
-    "Validation error
-      - Invalid enum value. Expected 'one' | 'two' | 'three' | 'four', received 'fileNotFound' at index 1
-    diff
+      "Validation error
+        - Invalid enum value. Expected 'one' | 'two' | 'three' | 'four', received 'fileNotFound' at index 1
+      diff
 
-    Usage:
-      diff [flags...] <Base path> <Head path>
+      USAGE:
+        diff [flags...] <Base path> <Head path>
 
-    Flags:
-      -h, --help                     Show help
-          --interactive              Enter interactive mode
-          --ignore-whitespace        Ignore whitespace changes
-          --trim                     Trim start/end whitespace
-    "
-  `);
+      FLAGS:
+        -h, --help                     Show help
+            --ignore-whitespace        Ignore whitespace changes
+            --trim                     Trim start/end whitespace
+      "
+    `);
 });
 
 test("fs diff", async () => {
   expect(await tsx("fs", ["diff", "--help"])).toMatchInlineSnapshot(`
     "diff
 
-    Usage:
+    USAGE:
       diff [flags...] <Base path> <Head path>
 
-    Flags:
+    FLAGS:
       -h, --help                     Show help
           --ignore-whitespace        Ignore whitespace changes
           --trim                     Trim start/end whitespace
     "
   `);
-  expect(await tsx("fs", ["diff", "one", "two"])).toMatchInlineSnapshot(`""`);
+  expect(await tsx("fs", ["diff", "one", "two"])).toMatchInlineSnapshot(`"null"`);
   expect(await tsx("fs", ["diff", "one", "three"])).toMatchInlineSnapshot(
     `"base and head differ at index 0 ("a" !== "x")"`
   );
@@ -388,5 +382,5 @@ test("fs diff", async () => {
   );
   expect(
     await tsx("fs", ["diff", "three", "four", "--ignore-whitespace"])
-  ).toMatchInlineSnapshot(`""`);
+  ).toMatchInlineSnapshot(`"null"`);
 });

@@ -6,10 +6,11 @@ import { ZodError } from 'zod';
 import { type JsonSchema7Type } from 'zod-to-json-schema';
 import * as zodValidationError from 'zod-validation-error';
 import argv from 'string-argv';
-import { createTRPCProxyClient } from '@trpc/client';
+import { createTRPCProxyClient, TRPCClientError } from '@trpc/client';
 import { flattenedProperties, incompatiblePropertyPairs, getDescription } from './json-schema';
 import { lineByLineConsoleLogger } from './logging';
 import { AnyProcedure, AnyRouter, isTrpc11Procedure } from './trpc-compat';
+import { observable } from '@trpc/server/observable';
 import { Logger, TrpcCliParams } from './types';
 import { looksLikeInstanceof } from './util';
 import { parseProcedureInputs } from './zod-procedure';
@@ -52,6 +53,46 @@ export function createCli<R extends AnyRouter>({
   link,
   ...params
 }: TrpcCliParams<R>): TrpcCli {
+  const linkFactory =
+    link ??
+    ((ctx: any) =>
+      () =>
+      ({ op }: any) =>
+        observable<any>((observer) => {
+          const execute = async () => {
+            try {
+              const localRouter = ctx?.router ?? router;
+              const caller =
+                typeof (localRouter as any).createCaller === 'function'
+                  ? (localRouter as any).createCaller(ctx as any)
+                  : (params.createCallerFactory
+                      ? params.createCallerFactory(localRouter)
+                      : trpcServer.initTRPC.context<any>().create().createCallerFactory(localRouter))(
+                      ctx as any
+                    );
+              const method = op.path.split('.').reduce((curr: any, key: string) => {
+                if (curr?.[key] === undefined) {
+                  throw new Error(`Method "${key}" not found in "${op.path}"`);
+                }
+                return curr[key];
+              }, caller);
+              if (typeof method !== 'function') {
+                throw new Error(`"${op.path}" is not a function`);
+              }
+              const result = await method(op.input);
+              observer.next({ result: { data: result } });
+              observer.complete();
+            } catch (error: any) {
+              observer.error(
+                error instanceof TRPCClientError
+                  ? error
+                  : new TRPCClientError(error?.message ?? String(error))
+              );
+            }
+          };
+
+          void execute();
+        }));
   const procedures = Object.entries<AnyProcedure>(router._def.procedures as {}).map(
     ([name, procedure]) => {
       const procedureResult = parseProcedureInputs(
@@ -234,7 +275,7 @@ export function createCli<R extends AnyRouter>({
 
     const caller = createTRPCProxyClient<R>({
       links: [
-        link({
+        linkFactory({
           app: {
             run: (commandString) => run({ argv: argv(commandString), logger, process }),
           },
@@ -259,7 +300,6 @@ export function createCli<R extends AnyRouter>({
         parsedArgv.showHelp();
       }
       if (!isInteractive) {
-        console.log('exiting');
         _process.exit(1);
       }
     };
@@ -374,6 +414,10 @@ export function createCli<R extends AnyRouter>({
 
     if (!command && parsedArgv._.length > 0) {
       command = parsedArgv._[0];
+    }
+
+    if (!command && params.default?.procedure) {
+      command = String(params.default.procedure);
     }
 
     if (command?.includes('(')) command = command.split('(')[0];
@@ -666,6 +710,23 @@ function transformError(err: unknown, fail: Fail): unknown {
     }
     if (err.code === 'BAD_REQUEST') {
       return fail(err.message, { cause: err });
+    }
+  }
+  if (looksLikeInstanceof(err, TRPCClientError)) {
+    const message = err.message;
+    try {
+      const parsed = JSON.parse(message) as Array<{ message?: string; path?: Array<string | number> }>;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const pretty = parsed
+          .map((issue) => {
+            const hasPath = Array.isArray(issue.path) && issue.path.length > 0;
+            return hasPath ? `${issue.message ?? 'Invalid input'} at index ${issue.path![0]}` : issue.message ?? 'Invalid input';
+          })
+          .join('\n  - ');
+        return fail(`Validation error\n  - ${pretty}`, { cause: err, help: true });
+      }
+    } catch {
+      // non-JSON error messages
     }
   }
   return err;

@@ -260,7 +260,7 @@ test("tuple input with flags", async () => {
     .toMatchInlineSnapshot(`
     CLI exited with code 1
       Caused by: Logs: Validation error
-      - Required at "[2].foo"
+      - Required at index 2
   `);
   await expect(run(router, ["foo", "hello", "not a number!", "--foo", "bar"]))
     .rejects.toMatchInlineSnapshot(`
@@ -273,7 +273,7 @@ test("tuple input with flags", async () => {
     CLI exited with code 1
       Caused by: Logs: Validation error
       - Expected number, received string at index 1
-      - Required at "[2].foo"
+      - Required at index 2
   `);
 });
 
