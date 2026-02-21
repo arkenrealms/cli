@@ -66,17 +66,34 @@ const ROUTES = {
 type RouteKey = keyof typeof ROUTES;
 const ROUTE_KEYS = Object.keys(ROUTES) as RouteKey[];
 
+const resolveRequestedRoute = (): RouteKey | undefined => {
+  const command = process.argv[2];
+  if (!command) return undefined;
+  const [namespace] = command.split('.');
+  if (!namespace) return undefined;
+  if (!ROUTE_KEYS.includes(namespace as RouteKey)) return undefined;
+  return namespace as RouteKey;
+};
+
+const requestedRoute = resolveRequestedRoute();
+
+const shouldInstantiateRoute = (routeKey: RouteKey) => {
+  if (!requestedRoute) return true;
+  if (routeKey === requestedRoute) return true;
+  return Boolean(ROUTES[routeKey].local);
+};
+
 export const t = initTRPC.context<{ app: any; router?: any }>().create();
 
 const localRouters = Object.fromEntries(
-  ROUTE_KEYS.flatMap((k) => (ROUTES[k].local ? [[k, ROUTES[k].local!()]] : []))
+  ROUTE_KEYS.flatMap((k) => (ROUTES[k].local && shouldInstantiateRoute(k) ? [[k, ROUTES[k].local!()]] : []))
 ) as Partial<Record<RouteKey, any>>;
 
 export const router = t.router({
   ...(localRouters as any),
   ...Object.fromEntries(
     ROUTE_KEYS.flatMap((k) => {
-      if (!ROUTES[k].create) return [];
+      if (!ROUTES[k].create || !shouldInstantiateRoute(k)) return [];
       try {
         return [[k, ROUTES[k].create!()]];
       } catch {
@@ -89,6 +106,7 @@ export const router = t.router({
 export type AppRouter = typeof router;
 
 const backends: BackendConfig[] = ROUTE_KEYS.flatMap((name) => {
+  if (!shouldInstantiateRoute(name)) return [];
   const url = ROUTES[name].remoteUrl?.();
   return url ? [{ name, url }] : [];
 });
@@ -102,7 +120,12 @@ const clients: Record<string, Client> = {};
 for (const backend of backends) {
   const client: Client = {
     ioCallbacks: {},
-    socket: ioClient(backend.url, { transports: ['websocket'], upgrade: false, autoConnect: true }),
+    socket: ioClient(backend.url, {
+      transports: ['websocket'],
+      upgrade: false,
+      autoConnect: true,
+      autoUnref: true,
+    }),
   };
 
   attachTrpcResponseHandler({

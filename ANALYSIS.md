@@ -115,3 +115,11 @@
   - Updated `router.ts` route registration to skip optional remote router creation when module resolution/initialization throws, preserving local CLI command/router availability.
   - Increased timeout budget for heavy `tsx`-spawned filesystem e2e cases in `test/e2e.test.ts` (`fs copy`, `fs diff`) from default 5s to 15s to remove runtime-noise flakes while preserving assertions.
 - Practical impact: local CLI/test surfaces stay reliable even if optional remote protocol packages are temporarily unavailable, and filesystem e2e coverage now completes consistently in CI-like runtimes.
+
+## 2026-02-20 slot-11 follow-up (22:5x PT)
+- Rationale: `router.ts` still initialized every configured remote backend socket at module load, even when the command targeted a single local namespace (for example `math.add`). In maintenance/runtime environments this creates avoidable websocket connection attempts and can keep Node processes alive longer than needed.
+- Change scope:
+  - Added argv-aware route targeting (`resolveRequestedRoute` + `shouldInstantiateRoute`) so a namespaced command only instantiates the requested remote route plus local fallback routers.
+  - Applied the same route filter to backend socket client creation to avoid unnecessary remote socket setup for unrelated namespaces.
+  - Enabled `socket.io-client` `autoUnref: true` to reduce process-hang risk in short-lived CLI invocations.
+- Practical impact: CLI runs that target a single namespace now do less eager remote work while preserving existing local command behavior and remote dispatch for the selected route.
