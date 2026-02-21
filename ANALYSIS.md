@@ -86,3 +86,10 @@
     - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8082 ./bin/arken cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
     - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8082 rushx cli cerebro.ask --mod math --messages 2+2` ✅ (echo payload returned)
 - Cross-repo transport checks were also rerun in `cerebro/link` (`rushx test` ✅ including callback settlement coverage) to confirm websocket request/response handling and callback cleanup behavior stay green.
+
+## 2026-02-20 slot-11 follow-up (16:5x PT)
+- Rationale: array-flag parsing had no explicit coverage for short-alias equals syntax (`-v=alpha`), even though docs and parser logic intend parity with long-flag forms.
+- Change scope:
+  - Added `isArrayFlagBoundary(...)` in `index.ts` so array-value capture boundaries are tied to declared short aliases and long flags, reducing accidental early termination from unrelated short tokens.
+  - Added `test/parsing.test.ts` coverage (`array flag accepts short-alias equals values`) using alias mapping to lock repeated `-v=...` handling with trailing flags.
+- Practical impact: list-style flag parsing behavior is now test-locked for short-alias equals input style without adding router-layer abstractions.

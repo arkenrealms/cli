@@ -465,8 +465,8 @@ export function createCli<R extends AnyRouter>({
             // Collect values until the next flag or end of input
             for (let j = i + 1; j < rawArgs.length; j++) {
               const nextArg = rawArgs[j];
-              if (isFlagToken(nextArg)) {
-                break; // Stop at the next flag
+              if (isArrayFlagBoundary(nextArg, flagDefinitions)) {
+                break; // Stop at the next declared/long flag
               }
               collectedValues.push(nextArg);
             }
@@ -694,6 +694,19 @@ function isFlagToken(value: string): boolean {
 
   // Keep numeric literals (e.g. -1, -0.5, -1e3) as positional values for array inputs.
   return Number.isNaN(Number(value));
+}
+
+function isArrayFlagBoundary(
+  value: string,
+  flagDefinitions: Record<string, CleyeFlag>
+): boolean {
+  if (!value.startsWith('-') || value === '-') return false;
+  if (value.startsWith('--')) return true;
+
+  return Object.values(flagDefinitions).some((flagDef) => {
+    if (!flagDef.alias) return false;
+    return value === `-${flagDef.alias}` || value.startsWith(`-${flagDef.alias}=`);
+  });
 }
 
 function transformError(err: unknown, fail: Fail): unknown {
