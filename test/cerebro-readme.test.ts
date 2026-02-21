@@ -70,4 +70,24 @@ test('README cerebro.info commands work against websocket tRPC bridge', async ()
 
   expect(askViaBin.stdout).toContain('"mod": "math"');
   expect(askViaBin.stdout).toContain('"messages"');
+
+  const execViaRushx = await execFileAsync(
+    'rushx',
+    ['cli', 'cerebro.exec', '--agent', 'Hisoka', '--method', 'run'],
+    {
+      cwd,
+      env,
+    }
+  );
+
+  expect(execViaRushx.stdout).toContain('"agent": "Hisoka"');
+  expect(execViaRushx.stdout).toContain('"method": "run"');
+
+  const execViaBin = await execFileAsync('./bin/arken', ['cerebro.exec', 'Hisoka.run()'], {
+    cwd,
+    env,
+  });
+
+  expect(execViaBin.stdout).toContain('"agent": "Hisoka"');
+  expect(execViaBin.stdout).toContain('"method": "run"');
 }, 180_000);

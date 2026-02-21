@@ -574,6 +574,26 @@ test("shorthand parser preserves trailing empty params", async () => {
   );
 });
 
+test("shorthand parser with empty parens omits params flag", async () => {
+  const router = t.router({
+    "cerebro.exec": t.procedure
+      .input(
+        z.object({
+          agent: z.string(),
+          method: z.string(),
+          params: z.array(z.string()).optional(),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await run(router, ["cerebro.exec", "Hisoka.run()"]);
+
+  expect(result).toMatchInlineSnapshot(
+    `"{\"agent\":\"Hisoka\",\"method\":\"run\"}"`
+  );
+});
+
 test("shorthand parser preserves quoted whitespace params", async () => {
   const router = t.router({
     "cerebro.exec": t.procedure

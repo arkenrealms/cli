@@ -166,3 +166,19 @@
   - Corrected interactive shorthand match destructuring to use capture groups consistently (`[, agent, method, paramsString]`).
   - Added regression coverage in `test/parsing.test.ts` (`shorthand parser accepts hyphenated agent and method names`).
 - Practical impact: shorthand calls now support common hyphenated identifiers reliably in both one-shot and interactive CLI modes.
+
+## 2026-02-21 cron run follow-up (13:2x PT)
+- Rationale: README examples include both `cerebro.exec --agent ... --method ...` and shorthand `Hisoka.run()` forms, but the existing websocket README interop test only locked `cerebro.info`/`cerebro.ask`; adding `cerebro.exec` coverage exposed a real transport gap (`TRPC handler does not exist for method: exec`) and closed the doc-to-runtime gap.
+- Change scope:
+  - Extended `test/cerebro-readme.test.ts` to execute and assert both README-style exec variants over the live tRPC websocket bridge:
+    - `rushx cli cerebro.exec --agent Hisoka --method run`
+    - `./bin/arken cerebro.exec Hisoka.run()`
+  - Assertions verify payload fields (`agent`, `method`) from the link service response.
+- Practical impact: README command reliability checks now include exec request/response flow in addition to info/ask, strengthening end-to-end CLI↔cerebro-link confidence and catching transport regressions quickly.
+
+## 2026-02-21 cron run follow-up (13:2x PT, parser correction)
+- Rationale: shorthand no-arg form `Hisoka.run()` was being expanded with an empty `--params` token, producing `params: [""]` instead of an empty list and diverging from expected README semantics.
+- Change scope:
+  - Updated shorthand argv reconstruction in `index.ts` to include `--params` only when parsed params are present.
+  - Added regression coverage in `test/parsing.test.ts` (`shorthand parser with empty parens omits params flag`).
+- Practical impact: no-arg shorthand exec now serializes cleanly as `params: []` in live CLI↔cerebro-link websocket calls.

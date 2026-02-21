@@ -233,8 +233,7 @@ export function createCli<R extends AnyRouter>({
           agent,
           '--method',
           method,
-          '--params',
-          ...params,
+          ...(params.length > 0 ? ['--params', ...params] : []),
           ...remainingArgs,
         ];
       } else {
