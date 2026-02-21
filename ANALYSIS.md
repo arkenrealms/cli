@@ -93,3 +93,18 @@
   - Added `isArrayFlagBoundary(...)` in `index.ts` so array-value capture boundaries are tied to declared short aliases and long flags, reducing accidental early termination from unrelated short tokens.
   - Added `test/parsing.test.ts` coverage (`array flag accepts short-alias equals values`) using alias mapping to lock repeated `-v=...` handling with trailing flags.
 - Practical impact: list-style flag parsing behavior is now test-locked for short-alias equals input style without adding router-layer abstractions.
+
+## 2026-02-20 slot-11 follow-up (18:4x PT)
+- Rationale: array-list flags already supported `--flag value` and `--flag=value`, but short alias values attached without `=` (for example `-valpha`) were not collected into array inputs, causing silent value loss for a common CLI style.
+- Change scope:
+  - Updated `index.ts` array-flag collector to accept short-alias attached values (`-valpha`) in addition to `-v alpha` and `-v=alpha`.
+  - Added regression coverage in `test/parsing.test.ts` (`array flag accepts short-alias attached values`) to lock behavior with trailing flags.
+  - Updated `README.md` list-flag examples to document attached short-alias form.
+- Practical impact: list-style flag parsing is now consistent across common shorthand variants without introducing extra router/procedure abstraction.
+
+## 2026-02-20 slot-11 follow-up correction (18:4x PT)
+- Correction: attached short-alias array syntax (`-valpha`) is parsed by the argument parser as bundled short options and is not a supported input form in this CLI.
+- Final slot change:
+  - Added explicit regression coverage in `test/parsing.test.ts` for repeated short-alias spaced list values (`-v alpha -v beta`) with trailing flags.
+  - Updated `README.md` list-flag examples to document supported short-alias list syntax accurately.
+- Practical impact: parser expectations are now test-locked for supported short-alias multi-value usage, reducing ambiguity for CLI callers and docs drift.

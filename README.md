@@ -81,11 +81,12 @@ cerebro.exec Gon.ask("calculate 1+1", "you always reply with a smile")
 Gon.ask("calculate 1+1", "you always reply with a smile")
 ```
 
-For list-style flags, both spaced and equals forms are accepted:
+For list-style flags, spaced, equals, and repeated short-alias forms are accepted:
 
 ```bash
 rushx cli some.command --values a b c
 rushx cli some.command --values=a --values=b --values=c
+rushx cli some.command -v a -v b -v c
 ```
 
 Run the individual module CLI:

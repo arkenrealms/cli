@@ -487,6 +487,32 @@ test("array flag accepts short-alias equals values", async () => {
   );
 });
 
+test("array flag accepts repeated short-alias spaced values", async () => {
+  const router = t.router({
+    test: t.procedure
+      .input(
+        z.object({
+          values: z.array(z.string()),
+          tag: z.string().optional(),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await runWith(
+    {
+      router,
+      link,
+      alias: (flagName) => (flagName === "values" ? "v" : undefined),
+    },
+    ["test", "-v", "alpha", "-v", "beta", "--tag", "demo"]
+  );
+
+  expect(result).toMatchInlineSnapshot(
+    `"{\"values\":[\"alpha\",\"beta\"],\"tag\":\"demo\"}"`
+  );
+});
+
 test("array flag accepts equals-assigned values", async () => {
   const router = t.router({
     test: t.procedure
