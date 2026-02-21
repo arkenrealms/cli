@@ -339,40 +339,49 @@ export function createCli<R extends AnyRouter>({
     let inQuotes = false;
     let quoteChar = '';
     let escape = false;
+    let sawParamToken = false;
 
     for (let i = 0; i < paramsString.length; i++) {
       const char = paramsString[i];
 
       if (escape) {
         currentParam += char;
+        sawParamToken = true;
         escape = false;
         continue;
       }
 
       if (char === '\\') {
         escape = true;
+        sawParamToken = true;
         continue;
       }
 
       if (inQuotes) {
         if (char === quoteChar) {
           inQuotes = false;
+          sawParamToken = true;
         } else {
           currentParam += char;
+          sawParamToken = true;
         }
       } else {
         if (char === '"' || char === "'") {
           inQuotes = true;
           quoteChar = char;
+          sawParamToken = true;
         } else if (char === ',') {
           params.push(currentParam.trim());
           currentParam = '';
+          sawParamToken = false;
         } else {
           currentParam += char;
+          if (char.trim().length > 0) sawParamToken = true;
         }
       }
     }
-    if (currentParam) {
+
+    if (sawParamToken || currentParam.trim().length > 0 || paramsString.trimEnd().endsWith(',')) {
       params.push(currentParam.trim());
     }
     return params;

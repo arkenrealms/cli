@@ -130,3 +130,10 @@
   - Updated `isArrayFlagBoundary(...)` to treat any real flag token as a boundary while still preserving numeric negatives (for example `-1`) as array values.
   - Added regression coverage in `test/parsing.test.ts` (`array flag does not absorb unknown short flags`).
 - Practical impact: multi-value flag parsing no longer swallows short flags into array payloads, reducing accidental input corruption in mixed-flag commands.
+
+## 2026-02-21 slot-11 follow-up (03:0x PT)
+- Rationale: shorthand command parsing dropped trailing empty parameters (for example `Gon.ask("hello", "")`), which changed argument arity and could silently break downstream agent method calls.
+- Change scope:
+  - Updated `parseParamsString(...)` in `index.ts` to preserve explicitly provided empty trailing params.
+  - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves trailing empty params`) using `cerebro.exec` shorthand input.
+- Practical impact: shorthand invocations now preserve intentional empty string arguments, improving reliability for command paths that depend on exact positional parameter counts.
