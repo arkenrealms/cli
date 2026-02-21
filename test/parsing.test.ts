@@ -637,6 +637,26 @@ test("shorthand parser accepts hyphenated agent and method names", async () => {
   );
 });
 
+test("shorthand parser preserves trailing backslash in params", async () => {
+  const router = t.router({
+    "cerebro.exec": t.procedure
+      .input(
+        z.object({
+          agent: z.string(),
+          method: z.string(),
+          params: z.array(z.string()),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await run(router, ["cerebro.exec", "Gon.ask(hello\\\\)"]);
+
+  expect(result).toMatchInlineSnapshot(
+    `"{\"agent\":\"Gon\",\"method\":\"ask\",\"params\":[\"hello\\\\\"]}"`
+  );
+});
+
 test("boolean array input", async () => {
   const router = t.router({
     test: t.procedure

@@ -393,6 +393,11 @@ export function createCli<R extends AnyRouter>({
       }
     }
 
+    if (escape) {
+      currentParam += '\\';
+      sawParamToken = true;
+    }
+
     if (sawParamToken || currentParam.trim().length > 0 || paramsString.trimEnd().endsWith(',')) {
       pushCurrentParam();
     }

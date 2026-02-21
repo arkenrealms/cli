@@ -182,3 +182,10 @@
   - Updated shorthand argv reconstruction in `index.ts` to include `--params` only when parsed params are present.
   - Added regression coverage in `test/parsing.test.ts` (`shorthand parser with empty parens omits params flag`).
 - Practical impact: no-arg shorthand exec now serializes cleanly as `params: []` in live CLI↔cerebro-link websocket calls.
+
+## 2026-02-21 slot-11 follow-up (13:3x PT)
+- Rationale: shorthand parameter parsing dropped a terminal escape marker when params ended with a backslash (for example `Gon.ask(hello\\)`), which can corrupt path-like inputs and silently alter user intent.
+- Change scope:
+  - Updated `parseParamsString(...)` in `index.ts` to retain a trailing literal backslash when an escape sequence is unfinished at end-of-input.
+  - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves trailing backslash in params`).
+- Practical impact: shorthand `cerebro.exec` calls now preserve terminal backslashes in parameter payloads instead of truncating them.
