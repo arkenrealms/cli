@@ -62,4 +62,12 @@ test('README cerebro.info commands work against websocket tRPC bridge', async ()
 
   expect(askViaRushx.stdout).toContain('"mod": "math"');
   expect(askViaRushx.stdout).toContain('"messages"');
+
+  const askViaBin = await execFileAsync('./bin/arken', ['cerebro.ask', '--mod', 'math', '--messages', '2+2'], {
+    cwd,
+    env,
+  });
+
+  expect(askViaBin.stdout).toContain('"mod": "math"');
+  expect(askViaBin.stdout).toContain('"messages"');
 }, 180_000);
