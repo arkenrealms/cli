@@ -123,3 +123,10 @@
   - Applied the same route filter to backend socket client creation to avoid unnecessary remote socket setup for unrelated namespaces.
   - Enabled `socket.io-client` `autoUnref: true` to reduce process-hang risk in short-lived CLI invocations.
 - Practical impact: CLI runs that target a single namespace now do less eager remote work while preserving existing local command behavior and remote dispatch for the selected route.
+
+## 2026-02-21 slot-11 follow-up (00:5x PT)
+- Rationale: array-flag collection in `index.ts` only treated declared short aliases as boundaries, so generic short flags (for example `-h`) could be accidentally absorbed as data values in multi-value inputs.
+- Change scope:
+  - Updated `isArrayFlagBoundary(...)` to treat any real flag token as a boundary while still preserving numeric negatives (for example `-1`) as array values.
+  - Added regression coverage in `test/parsing.test.ts` (`array flag does not absorb unknown short flags`).
+- Practical impact: multi-value flag parsing no longer swallows short flags into array payloads, reducing accidental input corruption in mixed-flag commands.

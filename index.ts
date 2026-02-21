@@ -700,13 +700,13 @@ function isArrayFlagBoundary(
   value: string,
   flagDefinitions: Record<string, CleyeFlag>
 ): boolean {
-  if (!value.startsWith('-') || value === '-') return false;
+  if (!isFlagToken(value)) return false;
   if (value.startsWith('--')) return true;
 
   return Object.values(flagDefinitions).some((flagDef) => {
     if (!flagDef.alias) return false;
     return value === `-${flagDef.alias}` || value.startsWith(`-${flagDef.alias}=`);
-  });
+  }) || isFlagToken(value);
 }
 
 function transformError(err: unknown, fail: Fail): unknown {

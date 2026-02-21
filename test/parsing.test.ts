@@ -513,6 +513,22 @@ test("array flag accepts repeated short-alias spaced values", async () => {
   );
 });
 
+test("array flag does not absorb unknown short flags", async () => {
+  const router = t.router({
+    test: t.procedure
+      .input(
+        z.object({
+          values: z.array(z.string()),
+        })
+      )
+      .query(({ input }) => JSON.stringify(input)),
+  });
+
+  const result = await run(router, ["test", "--values", "alpha", "-x"]);
+
+  expect(result).toMatchInlineSnapshot(`"{\"values\":[\"alpha\"]}"`);
+});
+
 test("array flag accepts equals-assigned values", async () => {
   const router = t.router({
     test: t.procedure
