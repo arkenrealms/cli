@@ -334,12 +334,20 @@ export function createCli<R extends AnyRouter>({
     });
   }
   function parseParamsString(paramsString: string): string[] {
-    const params = [];
+    const params: string[] = [];
     let currentParam = '';
     let inQuotes = false;
     let quoteChar = '';
     let escape = false;
     let sawParamToken = false;
+    let currentTokenQuoted = false;
+
+    const pushCurrentParam = () => {
+      params.push(currentTokenQuoted ? currentParam : currentParam.trim());
+      currentParam = '';
+      sawParamToken = false;
+      currentTokenQuoted = false;
+    };
 
     for (let i = 0; i < paramsString.length; i++) {
       const char = paramsString[i];
@@ -367,14 +375,19 @@ export function createCli<R extends AnyRouter>({
         }
       } else {
         if (char === '"' || char === "'") {
+          if (currentParam.trim().length === 0) {
+            currentParam = '';
+          }
           inQuotes = true;
           quoteChar = char;
           sawParamToken = true;
+          currentTokenQuoted = true;
         } else if (char === ',') {
-          params.push(currentParam.trim());
-          currentParam = '';
-          sawParamToken = false;
+          pushCurrentParam();
         } else {
+          if (currentTokenQuoted && char.trim().length === 0) {
+            continue;
+          }
           currentParam += char;
           if (char.trim().length > 0) sawParamToken = true;
         }
@@ -382,7 +395,7 @@ export function createCli<R extends AnyRouter>({
     }
 
     if (sawParamToken || currentParam.trim().length > 0 || paramsString.trimEnd().endsWith(',')) {
-      params.push(currentParam.trim());
+      pushCurrentParam();
     }
     return params;
   }

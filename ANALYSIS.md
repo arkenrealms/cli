@@ -137,3 +137,10 @@
   - Updated `parseParamsString(...)` in `index.ts` to preserve explicitly provided empty trailing params.
   - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves trailing empty params`) using `cerebro.exec` shorthand input.
 - Practical impact: shorthand invocations now preserve intentional empty string arguments, improving reliability for command paths that depend on exact positional parameter counts.
+
+## 2026-02-21 slot-11 follow-up (05:4x PT)
+- Rationale: shorthand parameter parsing trimmed all tokens before dispatch, so quoted whitespace-only arguments (for example `Gon.ask("hello", "   ")`) were collapsed to empty strings and lost user intent.
+- Change scope:
+  - Updated `parseParamsString(...)` in `index.ts` to preserve exact token text for quoted params while keeping trim behavior for unquoted params.
+  - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves quoted whitespace params`) to lock whitespace-preserving behavior.
+- Practical impact: shorthand agent invocations now preserve intentional whitespace payloads in quoted args, improving parity with explicit `--params` usage and reducing silent input mutation.
