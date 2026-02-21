@@ -144,3 +144,17 @@
   - Updated `parseParamsString(...)` in `index.ts` to preserve exact token text for quoted params while keeping trim behavior for unquoted params.
   - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves quoted whitespace params`) to lock whitespace-preserving behavior.
 - Practical impact: shorthand agent invocations now preserve intentional whitespace payloads in quoted args, improving parity with explicit `--params` usage and reducing silent input mutation.
+
+## 2026-02-21 cron run validation (10:1x PT)
+- Rationale: this workflow currently prioritizes stable CLI↔cerebro-link tRPC websocket interop and README command reliability, so this run focused on concrete end-to-end verification in the current runtime rather than additional transport refactors.
+- Validation runbook/results (Node `20.11.1`, Rush scripts):
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cerebro/link` ✅ (6/6 tests, including websocket callback settlement coverage)
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cli` ✅ (67/67 tests, including `test/cerebro-readme.test.ts`)
+  - with live bridge from `cerebro/link` (`rushx dev` auto-fallback bound `ws://localhost:55687` because 8080 was occupied):
+    - `source ~/.nvm/nvm.sh && nvm use 20 && rushx cli config.list` ✅
+    - `source ~/.nvm/nvm.sh && nvm use 20 && ./bin/arken config.list` ✅
+    - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 rushx cli cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+    - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 ./bin/arken cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+    - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 rushx cli cerebro.ask --mod math --messages "2+2"` ✅
+    - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 ./bin/arken cerebro.ask --mod math --messages "2+2"` ✅
+- Practical impact: README-documented CLI commands are green in this environment and websocket transport remains reliable with occupied-port fallback behavior.
