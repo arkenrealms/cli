@@ -1,26 +1,96 @@
 name: CI
+
 on:
   push: {}
+  pull_request: {}
 
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: corepack enable
-      - run: npm install -g @microsoft/rush
-      - run: git clone https://github.com/arkenrealms/arken.git
-      - run: cd arken
-      - run: rush install
-      - run: rush update
-      - run: rushx build
-      - run: rushx lint
-      - run: rushx test
+      - name: Checkout cli repo
+        uses: actions/checkout@v4
+        with:
+          path: cli
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.11.1
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install Rush
+        run: npm install -g @microsoft/rush
+
+      - name: Clone arken monorepo
+        run: git clone --depth=1 https://github.com/arkenrealms/arken.git arken
+
+      - name: Sync cli sources into monorepo package
+        run: |
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.rush' \
+            --exclude '.github' \
+            cli/ arken/packages/cli/
+
+      - name: Install dependencies
+        run: rush install
+        working-directory: arken
+
+      - name: Build cli
+        run: rushx build
+        working-directory: arken/packages/cli
+
+      - name: Lint cli
+        run: rushx lint
+        working-directory: arken/packages/cli
+
+      - name: Test cli
+        run: rushx test
+        working-directory: arken/packages/cli
+
   test_trpc_vnext:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - run: corepack enable
-      - run: npm install -g @microsoft/rush
-      - run: rush add -p @trpc/server@next
-      - run: rushx test e2e
+      - name: Checkout cli repo
+        uses: actions/checkout@v4
+        with:
+          path: cli
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.11.1
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install Rush
+        run: npm install -g @microsoft/rush
+
+      - name: Clone arken monorepo
+        run: git clone --depth=1 https://github.com/arkenrealms/arken.git arken
+
+      - name: Sync cli sources into monorepo package
+        run: |
+          rsync -a --delete \
+            --exclude '.git' \
+            --exclude 'node_modules' \
+            --exclude '.rush' \
+            --exclude '.github' \
+            cli/ arken/packages/cli/
+
+      - name: Install dependencies
+        run: rush install
+        working-directory: arken
+
+      - name: Upgrade tRPC server (next)
+        run: rush add -p @trpc/server@next --make-consistent
+        working-directory: arken/packages/cli
+
+      - name: Run tests with tRPC next
+        run: rushx test
+        working-directory: arken/packages/cli
