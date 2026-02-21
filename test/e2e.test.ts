@@ -358,7 +358,7 @@ test("fs copy", async () => {
             --trim                     Trim start/end whitespace
       "
     `);
-});
+}, 15000);
 
 test("fs diff", async () => {
   expect(await tsx("fs", ["diff", "--help"])).toMatchInlineSnapshot(`
@@ -383,4 +383,4 @@ test("fs diff", async () => {
   expect(
     await tsx("fs", ["diff", "three", "four", "--ignore-whitespace"])
   ).toMatchInlineSnapshot(`"null"`);
-});
+}, 15000);

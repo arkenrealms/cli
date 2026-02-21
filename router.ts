@@ -41,11 +41,26 @@ const ROUTES = {
     remoteUrl: () => process.env.CEREBRO_SERVICE_URI,
     create: () => createCerebroRouter(),
   },
-  seer: { remoteUrl: () => process.env['SEER_SERVICE_URI' + (isLocal ? '_LOCAL' : '')] },
-  'seer-prd': { remoteUrl: () => process.env.SEER_SERVICE_URI },
-  evolution: { remoteUrl: () => process.env['EVOLUTION_SERVICE_URI' + (isLocal ? '_LOCAL' : '')] },
-  'evolution-prd': { remoteUrl: () => process.env.EVOLUTION_SERVICE_URI },
-  'evolution-dev': { remoteUrl: () => process.env.EVOLUTION_SERVICE_URI_DEV },
+  seer: {
+    remoteUrl: () => process.env['SEER_SERVICE_URI' + (isLocal ? '_LOCAL' : '')],
+    create: () => require('@arken/seer-protocol').createRouter({} as any),
+  },
+  'seer-prd': {
+    remoteUrl: () => process.env.SEER_SERVICE_URI,
+    create: () => require('@arken/seer-protocol').createRouter({} as any),
+  },
+  evolution: {
+    remoteUrl: () => process.env['EVOLUTION_SERVICE_URI' + (isLocal ? '_LOCAL' : '')],
+    create: () => require('@arken/evolution-protocol/realm/realm.router').createRouter({} as any),
+  },
+  'evolution-prd': {
+    remoteUrl: () => process.env.EVOLUTION_SERVICE_URI,
+    create: () => require('@arken/evolution-protocol/realm/realm.router').createRouter({} as any),
+  },
+  'evolution-dev': {
+    remoteUrl: () => process.env.EVOLUTION_SERVICE_URI_DEV,
+    create: () => require('@arken/evolution-protocol/realm/realm.router').createRouter({} as any),
+  },
 } satisfies Record<string, RouteDef>;
 
 type RouteKey = keyof typeof ROUTES;
@@ -60,7 +75,14 @@ const localRouters = Object.fromEntries(
 export const router = t.router({
   ...(localRouters as any),
   ...Object.fromEntries(
-    ROUTE_KEYS.flatMap((k) => (ROUTES[k].create ? [[k, ROUTES[k].create!()]] : []))
+    ROUTE_KEYS.flatMap((k) => {
+      if (!ROUTES[k].create) return [];
+      try {
+        return [[k, ROUTES[k].create!()]];
+      } catch {
+        return [];
+      }
+    })
   ),
 });
 

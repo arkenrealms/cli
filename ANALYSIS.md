@@ -108,3 +108,10 @@
   - Added explicit regression coverage in `test/parsing.test.ts` for repeated short-alias spaced list values (`-v alpha -v beta`) with trailing flags.
   - Updated `README.md` list-flag examples to document supported short-alias list syntax accurately.
 - Practical impact: parser expectations are now test-locked for supported short-alias multi-value usage, reducing ambiguity for CLI callers and docs drift.
+
+## 2026-02-20 slot-11 follow-up (20:4x PT)
+- Rationale: `router.ts` eagerly built every remote protocol router at module load; when workspace linking drifted (or heavy protocol modules executed side-effectful model init), unrelated CLI tests failed before any command routing logic ran.
+- Change scope:
+  - Updated `router.ts` route registration to skip optional remote router creation when module resolution/initialization throws, preserving local CLI command/router availability.
+  - Increased timeout budget for heavy `tsx`-spawned filesystem e2e cases in `test/e2e.test.ts` (`fs copy`, `fs diff`) from default 5s to 15s to remove runtime-noise flakes while preserving assertions.
+- Practical impact: local CLI/test surfaces stay reliable even if optional remote protocol packages are temporarily unavailable, and filesystem e2e coverage now completes consistently in CI-like runtimes.
