@@ -220,7 +220,7 @@ export function createCli<R extends AnyRouter>({
     if (shorthandResult) {
       const { shorthandCommand, remainingArgs } = shorthandResult;
       // Parse the shorthand command
-      const shorthandRegex = /^(\w+)\.(\w+)\((.*)\)$/s;
+      const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
       const match = shorthandCommand.match(shorthandRegex);
       if (match) {
         const [, agent, method, paramsString] = match;
@@ -579,10 +579,10 @@ export function createCli<R extends AnyRouter>({
       if (shorthandResult) {
         const { shorthandCommand, remainingArgs } = shorthandResult;
         // Parse the shorthand command
-        const shorthandRegex = /^(\w+)\.(\w+)\((.*)\)$/s;
+        const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
         const match = shorthandCommand.match(shorthandRegex);
         if (match) {
-          const [mod, agent, method, paramsString] = match;
+          const [, agent, method, paramsString] = match;
           // Parse the paramsString into an array of parameters
           const params = parseParamsString(paramsString);
           // Replace the arguments with the full form

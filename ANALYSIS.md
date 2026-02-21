@@ -158,3 +158,11 @@
     - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 rushx cli cerebro.ask --mod math --messages "2+2"` ✅
     - `source ~/.nvm/nvm.sh && nvm use 20 && CEREBRO_SERVICE_URI=ws://127.0.0.1:55687 ./bin/arken cerebro.ask --mod math --messages "2+2"` ✅
 - Practical impact: README-documented CLI commands are green in this environment and websocket transport remains reliable with occupied-port fallback behavior.
+
+## 2026-02-21 slot-11 follow-up (10:3x PT)
+- Rationale: shorthand invocation regex only matched `\w` identifiers, so valid hyphenated names (for example `my-agent.fetch-data(...)`) were ignored and not expanded into `--agent/--method/--params`, causing command-not-found behavior.
+- Change scope:
+  - Updated shorthand regex in `index.ts` (both normal and interactive paths) to accept hyphenated agent/method identifiers.
+  - Corrected interactive shorthand match destructuring to use capture groups consistently (`[, agent, method, paramsString]`).
+  - Added regression coverage in `test/parsing.test.ts` (`shorthand parser accepts hyphenated agent and method names`).
+- Practical impact: shorthand calls now support common hyphenated identifiers reliably in both one-shot and interactive CLI modes.
