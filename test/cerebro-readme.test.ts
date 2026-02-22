@@ -41,6 +41,20 @@ test('README cerebro.info commands work against websocket tRPC bridge', async ()
 
   const cwd = path.resolve(__dirname, '..');
 
+  const rushxConfigList = await execFileAsync('rushx', ['cli', 'config.list'], {
+    cwd,
+    env,
+  });
+
+  expect(rushxConfigList.stdout).toContain('Current Configuration');
+
+  const binConfigList = await execFileAsync('./bin/arken', ['config.list'], {
+    cwd,
+    env,
+  });
+
+  expect(binConfigList.stdout).toContain('Current Configuration');
+
   const rushxInfo = await execFileAsync('rushx', ['cli', 'cerebro.info'], {
     cwd,
     env,
