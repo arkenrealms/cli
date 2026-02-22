@@ -189,3 +189,17 @@
   - Updated `parseParamsString(...)` in `index.ts` to retain a trailing literal backslash when an escape sequence is unfinished at end-of-input.
   - Added regression coverage in `test/parsing.test.ts` (`shorthand parser preserves trailing backslash in params`).
 - Practical impact: shorthand `cerebro.exec` calls now preserve terminal backslashes in parameter payloads instead of truncating them.
+
+## 2026-02-21 cron run follow-up (16:1x PT, README command reliability)
+- Rationale: in this environment port `8080` is frequently occupied, so README examples hardcoding `ws://127.0.0.1:8080` can fail even though the websocket bridge is healthy; docs should mirror the practical, smallest reliable setup path.
+- Change scope:
+  - Updated `README.md` websocket section to explicitly start `@arken/cerebro-link` with `PORT=8090 rushx dev` and use matching `CEREBRO_SERVICE_URI` examples.
+  - Added note that when port is not pinned, users should copy the auto-fallback `ws://localhost:<port>` endpoint printed by link dev server.
+- Validation runbook/results (Node `20.11.1`, Rush scripts):
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cerebro/link` ✅
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cli` ✅
+  - Live bridge from `cerebro/link` (`rushx dev` bound `ws://localhost:49856`):
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:49856 rushx cli cerebro.info` ✅
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:49856 ./bin/arken cerebro.info` ✅
+    - `rushx cli config.list` ✅
+- Practical impact: README commands now provide a deterministic port-pinned path that works reliably in this runtime while still documenting auto-fallback behavior.
