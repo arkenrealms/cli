@@ -27,14 +27,14 @@ jobs:
       - name: Clone arken monorepo
         run: git clone --depth=1 https://github.com/arkenrealms/arken.git arken
 
-      - name: Sync cli sources into monorepo package
+      - name: Sync cli sources into monorepo app path
         run: |
           rsync -a --delete \
             --exclude '.git' \
             --exclude 'node_modules' \
             --exclude '.rush' \
             --exclude '.github' \
-            cli/ arken/packages/cli/
+            cli/ arken/cli/
 
       - name: Install dependencies
         run: rush install
@@ -42,15 +42,15 @@ jobs:
 
       - name: Build cli
         run: rushx build
-        working-directory: arken/packages/cli
+        working-directory: arken/cli
 
       - name: Lint cli
         run: rushx lint
-        working-directory: arken/packages/cli
+        working-directory: arken/cli
 
       - name: Test cli
         run: rushx test
-        working-directory: arken/packages/cli
+        working-directory: arken/cli
 
   test_trpc_vnext:
     runs-on: ubuntu-latest
@@ -74,14 +74,14 @@ jobs:
       - name: Clone arken monorepo
         run: git clone --depth=1 https://github.com/arkenrealms/arken.git arken
 
-      - name: Sync cli sources into monorepo package
+      - name: Sync cli sources into monorepo app path
         run: |
           rsync -a --delete \
             --exclude '.git' \
             --exclude 'node_modules' \
             --exclude '.rush' \
             --exclude '.github' \
-            cli/ arken/packages/cli/
+            cli/ arken/cli/
 
       - name: Install dependencies
         run: rush install
@@ -89,8 +89,8 @@ jobs:
 
       - name: Upgrade tRPC server (next)
         run: rush add -p @trpc/server@next --make-consistent
-        working-directory: arken/packages/cli
+        working-directory: arken/cli
 
       - name: Run tests with tRPC next
         run: rushx test
-        working-directory: arken/packages/cli
+        working-directory: arken/cli
