@@ -28,23 +28,23 @@ rushx cli config.list
 
 ### Cerebro link over tRPC websocket
 
-Start `@arken/cerebro-link` first (pin a port if 8080 may be occupied):
+Start `@arken/cerebro-link` first (in this workspace, prefer an auto-selected free port):
 
 ```bash
 # from arken/cerebro/link
 source ~/.nvm/nvm.sh
 nvm use 20
-PORT=8090 rushx dev
+PORT=0 rushx dev
 ```
 
-Then run CLI commands against that websocket URI:
+Then run CLI commands against the websocket URI printed by cerebro-link (`ws://localhost:<port>`):
 
 ```bash
-CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 rushx cli cerebro.info
-CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 ./bin/arken cerebro.info
+CEREBRO_SERVICE_URI=ws://127.0.0.1:<port> rushx cli cerebro.info
+CEREBRO_SERVICE_URI=ws://127.0.0.1:<port> ./bin/arken cerebro.info
 ```
 
-If you run `rushx dev` without `PORT`, cerebro-link may auto-select another free port. Use the printed `ws://localhost:<port>` value for `CEREBRO_SERVICE_URI`.
+If you want to pin a port (for scripts/automation), set `PORT=<fixed-port>` and make sure that port is free first.
 
 ## Usage
 

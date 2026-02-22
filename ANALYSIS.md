@@ -215,3 +215,19 @@
     - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 rushx cli cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
     - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 ./bin/arken cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
 - Practical impact: README websocket commands are green in this environment and the tRPC websocket bridge remains operational end-to-end from CLI.
+
+## 2026-02-21 cron run follow-up (19:2x PT, resilient README websocket commands)
+- Rationale: in this runtime both `8090` and `8091` were already occupied during verification, so the prior pinned-port README sequence can fail despite healthy transport; docs should default to the smallest reliable path (`PORT=0` auto-bind + printed endpoint).
+- Change scope:
+  - Updated `README.md` websocket section to start `@arken/cerebro-link` with `PORT=0 rushx dev`.
+  - Updated `CEREBRO_SERVICE_URI` examples to use the printed `<port>` placeholder from the link server output.
+  - Added explicit note that pinned ports are optional and require a free port.
+- Validation runbook/results (Node `20.11.1`, Rush scripts):
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cerebro/link` ✅
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cli` ✅
+  - Live bridge from `cerebro/link` with `PORT=0 rushx dev` bound `ws://localhost:55923`:
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:55923 rushx cli cerebro.info` ✅
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:55923 ./bin/arken cerebro.info` ✅
+    - `rushx cli config.list` ✅
+    - `./bin/arken config.list` ✅
+- Practical impact: README instructions now match what consistently works in this environment while preserving pinning guidance for automation.
