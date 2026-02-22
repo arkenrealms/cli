@@ -203,3 +203,15 @@
     - `CEREBRO_SERVICE_URI=ws://127.0.0.1:49856 ./bin/arken cerebro.info` ✅
     - `rushx cli config.list` ✅
 - Practical impact: README commands now provide a deterministic port-pinned path that works reliably in this runtime while still documenting auto-fallback behavior.
+
+## 2026-02-22 cron run follow-up (18:1x PT, websocket interop verification)
+- Rationale: this workstream’s acceptance bar is stable CLI↔cerebro-link tRPC websocket behavior with README command reliability, so this run prioritized direct end-to-end checks (not abstraction refactors) and recorded exact command outcomes in the current environment.
+- Change scope:
+  - Added this verification log entry with concrete command transcript/results for reproducibility.
+- Validation runbook/results (Node `20.11.1`, Rush scripts):
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cerebro/link` ✅ (6/6 tests; includes websocket callback settlement coverage)
+  - `source ~/.nvm/nvm.sh && nvm use 20 && rushx test` in `cli` ✅ (70/70 tests; includes `test/cerebro-readme.test.ts` websocket README command coverage)
+  - Live command checks against active websocket endpoint:
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 rushx cli cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+    - `CEREBRO_SERVICE_URI=ws://127.0.0.1:8090 ./bin/arken cerebro.info` ✅ (`{"name":"Cerebro Link"}`)
+- Practical impact: README websocket commands are green in this environment and the tRPC websocket bridge remains operational end-to-end from CLI.
