@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./build",
+    "noEmit": false,
+    "allowJs": false,
+    "checkJs": false,
+    "isolatedModules": false,
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": [
+    "*.ts",
+    "modules/**/*.ts"
+  ],
+  "exclude": [
+    "build",
+    "node_modules",
+    "src",
+    "test",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

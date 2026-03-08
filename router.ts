@@ -1,7 +1,7 @@
 import { initTRPC } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
 import { TRPCClientError, type TRPCLink } from '@trpc/client';
-import { io as ioClient } from 'socket.io-client';
+import { io as ioClient, type Socket } from 'socket.io-client';
 import {
   attachTrpcResponseHandler,
   createSocketLink,
@@ -18,28 +18,77 @@ import HelpService from './modules/help/help.service';
 import { createRouter as createHelpRouter } from './modules/help/help.router';
 import TestService from './modules/test/test.service';
 import { createRouter as createTestRouter } from './modules/test/test.router';
-import { createRouter as createCerebroRouter } from '@arken/cerebro-protocol';
 
 import dotEnv from 'dotenv';
 dotEnv.config();
 
 const isLocal = process.env.ARKEN_ENV === 'local';
 
+type RouteFactory = () => any;
 type RouteDef = {
-  local?: () => any;
+  local?: RouteFactory;
   remoteUrl?: () => string | undefined;
-  create?: () => any;
+  create?: RouteFactory;
 };
 
-const ROUTES = {
-  application: { local: () => createApplicationRouter(new ApplicationService()) },
-  config: { local: () => createConfigRouter(new ConfigService()) },
-  math: { local: () => createMathRouter(new MathService()) },
-  help: { local: () => createHelpRouter(new HelpService()) },
-  test: { local: () => createTestRouter(new TestService()) },
+const ROUTE_KEYS = [
+  'application',
+  'config',
+  'math',
+  'help',
+  'test',
+  'cerebro',
+  'seer',
+  'seer-prd',
+  'evolution',
+  'evolution-prd',
+  'evolution-dev',
+] as const;
+
+type RouteKey = (typeof ROUTE_KEYS)[number];
+
+const createApplicationRoute = () => {
+  return createApplicationRouter(new ApplicationService());
+};
+
+const createConfigRoute = () => {
+  return createConfigRouter(new ConfigService());
+};
+
+const createMathRoute = () => {
+  return createMathRouter(new MathService());
+};
+
+const createHelpRoute = () => {
+  return createHelpRouter(new HelpService());
+};
+
+const createTestRoute = () => {
+  return createTestRouter(new TestService());
+};
+
+const createStubRemoteError = (methodName: string) => async () => {
+  throw new Error(`Remote route "${methodName}" is unavailable in local CLI mode`);
+};
+
+const createCerebroProtocolRouter = () => {
+  const { createRouter } = require('@arken/cerebro-protocol') as typeof import('@arken/cerebro-protocol');
+  return createRouter({
+    ask: createStubRemoteError('cerebro.ask'),
+    exec: createStubRemoteError('cerebro.exec'),
+    info: createStubRemoteError('cerebro.info'),
+  });
+};
+
+const ROUTES: Record<RouteKey, RouteDef> = {
+  application: { local: createApplicationRoute },
+  config: { local: createConfigRoute },
+  math: { local: createMathRoute },
+  help: { local: createHelpRoute },
+  test: { local: createTestRoute },
   cerebro: {
     remoteUrl: () => process.env.CEREBRO_SERVICE_URI,
-    create: () => createCerebroRouter(),
+    create: createCerebroProtocolRouter,
   },
   seer: {
     remoteUrl: () => process.env['SEER_SERVICE_URI' + (isLocal ? '_LOCAL' : '')],
@@ -61,14 +110,14 @@ const ROUTES = {
     remoteUrl: () => process.env.EVOLUTION_SERVICE_URI_DEV,
     create: () => require('@arken/evolution-protocol/realm/realm.router').createRouter({} as any),
   },
-} satisfies Record<string, RouteDef>;
+};
 
-type RouteKey = keyof typeof ROUTES;
-const ROUTE_KEYS = Object.keys(ROUTES) as RouteKey[];
+const getRouteDef = (routeKey: RouteKey): RouteDef => ROUTES[routeKey];
 
 const resolveRequestedRoute = (): RouteKey | undefined => {
   const command = process.argv[2];
   if (!command) return undefined;
+
   const [namespace] = command.split('.');
   if (!namespace) return undefined;
   if (!ROUTE_KEYS.includes(namespace as RouteKey)) return undefined;
@@ -80,47 +129,126 @@ const requestedRoute = resolveRequestedRoute();
 const shouldInstantiateRoute = (routeKey: RouteKey) => {
   if (!requestedRoute) return true;
   if (routeKey === requestedRoute) return true;
-  return Boolean(ROUTES[routeKey].local);
+  return Boolean(getRouteDef(routeKey).local);
 };
 
 export const t = initTRPC.context<{ app: any; router?: any }>().create();
 
-const localRouters = Object.fromEntries(
-  ROUTE_KEYS.flatMap((k) => (ROUTES[k].local && shouldInstantiateRoute(k) ? [[k, ROUTES[k].local!()]] : []))
-) as Partial<Record<RouteKey, any>>;
+let localRoutersCache: Partial<Record<RouteKey, any>> | undefined;
+let protocolRoutersCache: Partial<Record<RouteKey, any>> | undefined;
+let routerCache: ReturnType<typeof buildRouter> | undefined;
 
-export const router = t.router({
-  ...(localRouters as any),
-  ...Object.fromEntries(
-    ROUTE_KEYS.flatMap((k) => {
-      if (!ROUTES[k].create || !shouldInstantiateRoute(k)) return [];
+function getLocalRouters(): Partial<Record<RouteKey, any>> {
+  if (localRoutersCache) {
+    return localRoutersCache;
+  }
+
+  localRoutersCache = Object.fromEntries(
+    ROUTE_KEYS.flatMap((routeKey) => {
+      const route = getRouteDef(routeKey);
+      return route.local && shouldInstantiateRoute(routeKey) ? [[routeKey, route.local()]] : [];
+    })
+  ) as Partial<Record<RouteKey, any>>;
+
+  return localRoutersCache;
+}
+
+function getProtocolRouters(): Partial<Record<RouteKey, any>> {
+  if (protocolRoutersCache) {
+    return protocolRoutersCache;
+  }
+
+  protocolRoutersCache = Object.fromEntries(
+    ROUTE_KEYS.flatMap((routeKey) => {
+      const route = getRouteDef(routeKey);
+      if (!route.create || !shouldInstantiateRoute(routeKey)) return [];
+
       try {
-        return [[k, ROUTES[k].create!()]];
+        return [[routeKey, route.create()]];
       } catch {
         return [];
       }
     })
-  ),
-});
+  ) as Partial<Record<RouteKey, any>>;
 
-export type AppRouter = typeof router;
+  return protocolRoutersCache;
+}
 
-const backends: BackendConfig[] = ROUTE_KEYS.flatMap((name) => {
-  if (!shouldInstantiateRoute(name)) return [];
-  const url = ROUTES[name].remoteUrl?.();
-  return url ? [{ name, url }] : [];
-});
+function buildRouter() {
+  return t.router({
+    ...(getLocalRouters() as any),
+    ...(getProtocolRouters() as any),
+  });
+}
+
+function getRouter() {
+  return (routerCache ??= buildRouter());
+}
+
+export type AppRouter = ReturnType<typeof buildRouter>;
+
+const bindRouterValue = (routerValue: unknown, actualRouter: AppRouter) => {
+  return typeof routerValue === 'function' ? routerValue.bind(actualRouter) : routerValue;
+};
+
+export const router = new Proxy({} as Record<string, unknown>, {
+  get(_target, property, _receiver) {
+    const actualRouter = getRouter();
+    return bindRouterValue(Reflect.get(actualRouter as object, property, actualRouter), actualRouter);
+  },
+  has(_target, property) {
+    return property in getRouter();
+  },
+  ownKeys() {
+    return Reflect.ownKeys(getRouter());
+  },
+  getOwnPropertyDescriptor(_target, property) {
+    const actualRouter = getRouter();
+    const descriptor = Object.getOwnPropertyDescriptor(actualRouter, property);
+    if (!descriptor) {
+      return undefined;
+    }
+
+    if ('value' in descriptor) {
+      descriptor.value = bindRouterValue(descriptor.value, actualRouter);
+    }
+
+    return {
+      ...descriptor,
+      configurable: true,
+    };
+  },
+  getPrototypeOf() {
+    return Object.getPrototypeOf(getRouter());
+  },
+}) as AppRouter;
 
 type Client = {
   ioCallbacks: Record<string, any>;
-  socket: ReturnType<typeof ioClient>;
+  socket: Socket;
 };
 
-const clients: Record<string, Client> = {};
-for (const backend of backends) {
+const clients: Partial<Record<RouteKey, Client>> = {};
+
+function getBackends(): BackendConfig[] {
+  return ROUTE_KEYS.flatMap((routeKey) => {
+    if (!shouldInstantiateRoute(routeKey)) return [];
+
+    const url = getRouteDef(routeKey).remoteUrl?.();
+    return url ? [{ name: routeKey, url }] : [];
+  });
+}
+
+function getOrCreateClient(routeKey: RouteKey): Client | undefined {
+  const existingClient = clients[routeKey];
+  if (existingClient) return existingClient;
+
+  const url = getRouteDef(routeKey).remoteUrl?.();
+  if (!url) return undefined;
+
   const client: Client = {
     ioCallbacks: {},
-    socket: ioClient(backend.url, {
+    socket: ioClient(url, {
       transports: ['websocket'],
       upgrade: false,
       autoConnect: true,
@@ -130,12 +258,13 @@ for (const backend of backends) {
 
   attachTrpcResponseHandler({
     client,
-    backendName: backend.name,
+    backendName: routeKey,
     logging: false,
     preferOnAny: true,
   });
 
-  clients[backend.name] = client;
+  clients[routeKey] = client;
+  return client;
 }
 
 function waitUntil(predicate: () => boolean, timeoutMs: number, intervalMs = 100): Promise<void> {
@@ -160,62 +289,114 @@ function getNestedMethod(obj: any, path: string) {
   return fn;
 }
 
-const remoteLink = createSocketLink({
-  backends,
-  clients,
-  waitUntil: (predicate) => waitUntil(predicate, 15_000),
-  notifyTRPCError: () => undefined,
-  requestTimeoutMs: 15_000,
-});
+function hasProcedure(routerCandidate: any, procedurePath: string) {
+  const procedures = routerCandidate?._def?.procedures;
+  return Boolean(procedures && Object.prototype.hasOwnProperty.call(procedures, procedurePath));
+}
 
-export const link: TRPCLink<any> =
-  (ctx) =>
-  () =>
-  ({ op }) => {
+function createRemoteOperationLink(runtime: Parameters<TRPCLink<any>>[0]) {
+  return createSocketLink({
+    backends: getBackends(),
+    clients: clients as Record<string, Client>,
+    waitUntil: (predicate) => waitUntil(predicate, 15_000),
+    notifyTRPCError: () => undefined,
+    requestTimeoutMs: 15_000,
+  })(runtime);
+}
+
+function createOperationLink(runtime: Parameters<TRPCLink<any>>[0]) {
+  let remoteOperationLink: ReturnType<TRPCLink<any>> | undefined;
+
+  const getRemoteOperationLink = () => {
+    return (remoteOperationLink ??= createRemoteOperationLink(runtime));
+  };
+
+  return ({ op, next }) => {
     const [routerNameRaw, ...restPath] = op.path.split('.');
+    const routeKey =
+      routerNameRaw && ROUTE_KEYS.includes(routerNameRaw as RouteKey)
+        ? (routerNameRaw as RouteKey)
+        : undefined;
+    const boundRouter = (runtime as any)?.router;
+    const shouldPreferBoundRouter =
+      boundRouter && boundRouter !== router && hasProcedure(boundRouter, op.path);
 
-    if (routerNameRaw && clients[routerNameRaw]) {
-      return (remoteLink(ctx) as any)({ op });
+    if (shouldPreferBoundRouter) {
+      return observable((observer) => {
+        const execute = async () => {
+          try {
+            const caller = t.createCallerFactory(boundRouter)(runtime as any);
+            const method = getNestedMethod(caller, op.path);
+            const result = await method(op.input);
+            observer.next({ result: { data: result } });
+            observer.complete();
+          } catch (error: any) {
+            observer.error(
+              error instanceof TRPCClientError ? error : new TRPCClientError(error?.message ?? String(error))
+            );
+          }
+        };
+
+        void execute();
+      });
+    }
+
+    if (routeKey) {
+      const remoteClient = getOrCreateClient(routeKey);
+      if (remoteClient) {
+        return getRemoteOperationLink()({ op, next });
+      }
     }
 
     return observable((observer) => {
       const execute = async () => {
         try {
+          const localRouters = getLocalRouters();
           let localRouter: any;
           let methodPath: string;
 
-          if (
-            routerNameRaw &&
-            ROUTE_KEYS.includes(routerNameRaw as RouteKey) &&
-            localRouters[routerNameRaw as RouteKey] &&
-            restPath.length > 0
-          ) {
-            localRouter = localRouters[routerNameRaw as RouteKey];
+          if (routeKey && localRouters[routeKey] && restPath.length > 0) {
+            localRouter = localRouters[routeKey];
             methodPath = restPath.join('.');
-          } else if ((ctx as any)?.router) {
-            localRouter = (ctx as any).router;
+          } else if ((runtime as any)?.router) {
+            localRouter = (runtime as any).router;
             methodPath = op.path;
-          } else if (
-            routerNameRaw &&
-            ROUTE_KEYS.includes(routerNameRaw as RouteKey) &&
-            localRouters[routerNameRaw as RouteKey]
-          ) {
-            localRouter = localRouters[routerNameRaw as RouteKey];
-            methodPath = routerNameRaw;
+          } else if (routeKey && localRouters[routeKey]) {
+            localRouter = localRouters[routeKey];
+            methodPath = routeKey;
           } else {
             throw new TRPCClientError(`Unknown router: ${routerNameRaw}`);
           }
 
-          const caller = t.createCallerFactory(localRouter)(ctx as any);
+          const caller = t.createCallerFactory(localRouter)(runtime as any);
           const method = getNestedMethod(caller, methodPath);
           const result = await method(op.input);
           observer.next({ result: { data: result } });
           observer.complete();
         } catch (error: any) {
-          observer.error(error instanceof TRPCClientError ? error : new TRPCClientError(error?.message ?? String(error)));
+          observer.error(
+            error instanceof TRPCClientError ? error : new TRPCClientError(error?.message ?? String(error))
+          );
         }
       };
 
       void execute();
     });
   };
+}
+
+function looksLikeBoundRuntime(value: unknown): value is { app?: unknown; router?: unknown } {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      ('app' in (value as Record<string, unknown>) || 'router' in (value as Record<string, unknown>))
+  );
+}
+
+export const link: TRPCLink<any> = ((runtimeOrPreset: Parameters<TRPCLink<any>>[0]) => {
+  if (looksLikeBoundRuntime(runtimeOrPreset)) {
+    return () => createOperationLink(runtimeOrPreset);
+  }
+
+  return createOperationLink(runtimeOrPreset);
+}) as TRPCLink<any>;

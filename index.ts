@@ -13,7 +13,6 @@ import { AnyProcedure, AnyRouter, isTrpc11Procedure } from './trpc-compat';
 import { observable } from '@trpc/server/observable';
 import { Logger, TrpcCliParams } from './types';
 import { looksLikeInstanceof } from './util';
-import { parseProcedureInputs } from './zod-procedure';
 
 export * from './types';
 
@@ -25,6 +24,30 @@ export * as trpcServer from '@trpc/server';
 /** Re-export of the @trpc/server package to avoid needing to install manually when getting started */
 
 export type { AnyRouter, AnyProcedure } from './trpc-compat';
+
+type ProcedureType = 'mutation' | 'query' | 'subscription';
+
+type ProcedureInfo = {
+  name: string;
+  procedure: AnyProcedure;
+  jsonSchema: import('./types').ParsedProcedure;
+  properties: Record<string, JsonSchema7Type>;
+  incompatiblePairs: Array<[string, string]>;
+  type: ProcedureType;
+};
+
+type FullCliState = {
+  procedureEntries: Array<[string, ProcedureInfo]>;
+  procedureMap: Record<string, ProcedureInfo>;
+  cleyeCommands: CleyeCommandOptions[];
+};
+
+type ParsedCliArgv = ReturnType<typeof cleye.cli> & {
+  command?: string;
+  flags: Record<string, any>;
+  unknownFlags: Record<string, unknown>;
+  _: string[] & { '--': string[] };
+};
 
 export interface TrpcCli {
   run: (params?: {
@@ -93,54 +116,175 @@ export function createCli<R extends AnyRouter>({
 
           void execute();
         }));
-  const procedures = Object.entries<AnyProcedure>(router._def.procedures as {}).map(
-    ([name, procedure]) => {
-      const procedureResult = parseProcedureInputs(
-        // @ts-ignore
-        procedure._def.inputs as unknown[]
-      );
-      if (!procedureResult.success) {
-        console.log("Couldn't parse procedure: ", name, procedureResult.error);
-        // @ts-ignore
-        return [name, procedureResult.error] as const;
+  const procedureRecord = router._def.procedures as Record<string, AnyProcedure>;
+  const procedureSummaries = Object.entries(procedureRecord).map(([name, procedure]) => ({
+    name,
+    procedure,
+  }));
+  const summaryProcedureNames = new Set(procedureSummaries.map(({ name }) => name));
+  const summaryCleyeCommands: CleyeCommandOptions[] = procedureSummaries.map(
+    ({ name, procedure }) => ({
+      name,
+      help: procedure._def.meta,
+    })
+  );
+  const ignoredProcedures: { procedure: string; reason: string }[] = [];
+  let parseProcedureInputsPromise:
+    | Promise<typeof import('./zod-procedure').parseProcedureInputs>
+    | undefined;
+  let parseProcedureInputsSync:
+    | typeof import('./zod-procedure').parseProcedureInputs
+    | undefined;
+  let fullCliStatePromise: Promise<FullCliState> | undefined;
+  let ignoredProceduresCache: { procedure: string; reason: string }[] | undefined;
+
+  const getParseProcedureInputsSync = () => {
+    return (parseProcedureInputsSync ??=
+      (require('./zod-procedure') as typeof import('./zod-procedure')).parseProcedureInputs);
+  };
+
+  const loadParseProcedureInputs = async () => {
+    return (parseProcedureInputsPromise ??= Promise.resolve().then(() => {
+      return (
+        require('./zod-procedure') as typeof import('./zod-procedure')
+      ).parseProcedureInputs;
+    }));
+  };
+
+  const getIgnoredProcedures = () => {
+    if (ignoredProceduresCache) {
+      return ignoredProceduresCache;
+    }
+
+    const parseProcedureInputs = getParseProcedureInputsSync();
+    ignoredProceduresCache = Object.entries(procedureRecord).flatMap(([name, procedure]) => {
+      const procedureInputs = Array.isArray((procedure._def as { inputs?: unknown[] }).inputs)
+        ? ((procedure._def as { inputs?: unknown[] }).inputs as unknown[])
+        : [];
+      const procedureResult = parseProcedureInputs(procedureInputs);
+      return procedureResult.success === false
+        ? [{ procedure: name, reason: procedureResult.error }]
+        : [];
+    });
+
+    return ignoredProceduresCache;
+  };
+
+  const buildCleyeCommands = (entries: Array<[string, ProcedureInfo]>): CleyeCommandOptions[] => {
+    return entries.map(([commandName, { procedure, jsonSchema, properties }]) => {
+      const flags = Object.fromEntries(
+        Object.entries(properties).map(([propertyKey, propertyValue]) => {
+          const cleyeType = getCleyeType(propertyValue);
+
+          let description: string | undefined = getDescription(propertyValue);
+          if (
+            'required' in jsonSchema.flagsSchema &&
+            !jsonSchema.flagsSchema.required?.includes(propertyKey)
+          ) {
+            description = `${description} (optional)`.trim();
+          }
+          description ||= undefined;
+
+          return [
+            propertyKey,
+            {
+              type: cleyeType,
+              description,
+              multiple:
+                Array.isArray(cleyeType) ||
+                (propertyValue as {
+                  type?: string | string[];
+                }).type === 'array',
+              default: propertyValue.default,
+            },
+          ] satisfies [string, CliFlagDefinition];
+        })
+      ) as Record<string, CliFlagDefinition>;
+
+      Object.entries(flags).forEach(([fullName, flag]) => {
+        const alias = params.alias?.(fullName, {
+          command: commandName,
+          flags,
+        });
+        if (alias) {
+          flag.alias = alias;
+        }
+      });
+
+      return {
+        name: commandName,
+        help: procedure._def.meta,
+        parameters: jsonSchema.parameters,
+        flags,
+      };
+    });
+  };
+
+  const buildFullCliState = async (): Promise<FullCliState> => {
+    const parseProcedureInputs = await loadParseProcedureInputs();
+
+    const procedures = Object.entries(procedureRecord).map(([name, procedure]) => {
+      const procedureInputs = Array.isArray((procedure._def as { inputs?: unknown[] }).inputs)
+        ? ((procedure._def as { inputs?: unknown[] }).inputs as unknown[])
+        : [];
+      const procedureResult = parseProcedureInputs(procedureInputs);
+      if (procedureResult.success === false) {
+        return [name, procedureResult.error] as [string, string];
       }
 
       const jsonSchema = procedureResult.value;
-      const properties = flattenedProperties(jsonSchema.flagsSchema);
-      const incompatiblePairs = incompatiblePropertyPairs(jsonSchema.flagsSchema);
+      const properties = flattenedProperties(jsonSchema.flagsSchema) as Record<string, JsonSchema7Type>;
+      const incompatiblePairs = incompatiblePropertyPairs(jsonSchema.flagsSchema) as Array<
+        [string, string]
+      >;
 
-      // TRPC types are a bit of a lie - they claim to be `router._def.procedures.foo.bar` but really they're `router._def.procedures['foo.bar']`
-      const trpcProcedure = router._def.procedures[name] as AnyProcedure;
-      let type: 'mutation' | 'query' | 'subscription';
+      const trpcProcedure = procedureRecord[name];
+      let type: ProcedureType;
       if (isTrpc11Procedure(trpcProcedure)) {
         type = trpcProcedure._def.type;
-        // @ts-ignore
-      } else if (trpcProcedure._def.mutation) {
+      } else if ((trpcProcedure._def as { mutation?: boolean }).mutation) {
         type = 'mutation';
-        // @ts-ignore
-      } else if (trpcProcedure._def.query) {
+      } else if ((trpcProcedure._def as { query?: boolean }).query) {
         type = 'query';
-        // @ts-ignore
-      } else if (trpcProcedure._def.subscription) {
+      } else if ((trpcProcedure._def as { subscription?: boolean }).subscription) {
         type = 'subscription';
       } else {
         const keys = Object.keys(trpcProcedure._def).join(', ');
         throw new Error(`Unknown procedure type for procedure object with keys ${keys}`);
       }
 
-      return [name, { name, procedure, jsonSchema, properties, incompatiblePairs, type }] as const;
-    }
-  );
+      return [
+        name,
+        {
+          name,
+          procedure,
+          jsonSchema,
+          properties,
+          incompatiblePairs,
+          type,
+        },
+      ] as [string, ProcedureInfo];
+    });
 
-  const procedureEntries = procedures.flatMap(([k, v]) => {
-    return typeof v === 'string' ? [] : [[k, v] as const];
-  });
+    const procedureEntries = procedures.flatMap<[string, ProcedureInfo]>(([name, value]) =>
+      typeof value === 'string' ? [] : [[name, value]]
+    );
 
-  const procedureMap = Object.fromEntries(procedureEntries);
+    ignoredProceduresCache = procedures.flatMap(([name, value]) =>
+      typeof value === 'string' ? [{ procedure: name, reason: value }] : []
+    );
+    ignoredProcedures.splice(0, ignoredProcedures.length, ...ignoredProceduresCache);
 
-  const ignoredProcedures = procedures.flatMap(([k, v]) =>
-    typeof v === 'string' ? [{ procedure: k, reason: v }] : []
-  );
+    return {
+      procedureEntries,
+      procedureMap: Object.fromEntries(procedureEntries),
+      cleyeCommands: buildCleyeCommands(procedureEntries),
+    };
+  };
+
+  const getFullCliState = async (): Promise<FullCliState> => {
+    return (fullCliStatePromise ??= buildFullCliState());
+  };
 
   async function run(runParams?: {
     argv?: string[];
@@ -154,92 +298,18 @@ export function createCli<R extends AnyRouter>({
     const logger = { ...lineByLineConsoleLogger, ...runParams?.logger };
     const _process = runParams?.process || process;
     let verboseErrors: boolean = false;
-
-    const cleyeCommands = procedureEntries.map(
-      ([commandName, { procedure, jsonSchema, properties }]): CleyeCommandOptions => {
-        const flags = Object.fromEntries(
-          Object.entries(properties).map(([propertyKey, propertyValue]) => {
-            const cleyeType = getCleyeType(propertyValue);
-
-            let description: string | undefined = getDescription(propertyValue);
-            if (
-              'required' in jsonSchema.flagsSchema &&
-              !jsonSchema.flagsSchema.required?.includes(propertyKey)
-            ) {
-              description = `${description} (optional)`.trim();
-            }
-            description ||= undefined;
-
-            // Determine if the flag should accept multiple values
-            const isMultiple = Array.isArray(cleyeType) || propertyValue.type === 'array';
-
-            return [
-              propertyKey,
-              {
-                type: cleyeType,
-                description,
-                multiple: isMultiple, // Set 'multiple' to true for array types
-                // @ts-ignore
-                default: propertyValue.default as {},
-              },
-            ];
-          })
-        );
-
-        Object.entries(flags).forEach(([fullName, flag]) => {
-          const alias = params.alias?.(fullName, {
-            command: commandName,
-            flags,
-          });
-          if (alias) {
-            Object.assign(flag, { alias: alias });
-          }
-        });
-
-        return {
-          name: commandName,
-          help: procedure._def.meta,
-          parameters: jsonSchema.parameters,
-          flags: flags as {},
-        };
-      }
-    );
-
-    const defaultCommand =
-      params.default && cleyeCommands.find(({ name }) => name === params.default?.procedure);
-
     const rawArgs = runParams?.argv || process.argv.slice(2);
-    let inputArgv = rawArgs.slice(); // Copy the raw arguments
-
-    // Detect and reconstruct shorthand syntax
-    const commandName = inputArgv[0]; // 'cerebro.exec'; // Replace with your actual command name
-    let shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
-
-    // Reconstruct shorthand command from arguments after the command name
-    const shorthandResult = reconstructShorthandCommand(inputArgv.slice(shorthandIndex));
-    if (shorthandResult) {
-      const { shorthandCommand, remainingArgs } = shorthandResult;
-      // Parse the shorthand command
-      const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
-      const match = shorthandCommand.match(shorthandRegex);
-      if (match) {
-        const [, agent, method, paramsString] = match;
-        // Parse the paramsString into an array of parameters
-        const params = parseParamsString(paramsString);
-        // Replace the arguments with the full form
-        inputArgv = [
-          commandName,
-          '--agent',
-          agent,
-          '--method',
-          method,
-          ...(params.length > 0 ? ['--params', ...params] : []),
-          ...remainingArgs,
-        ];
-      } else {
-        // If regex doesn't match, handle the error or proceed as needed
-      }
-    }
+    const inputArgv = normalizeInputArgv(rawArgs);
+    const defaultProcedure = params.default ? String(params.default.procedure) : undefined;
+    const requestedCommand = resolveRequestedCommand(inputArgv, defaultProcedure);
+    const shouldUseSummaryOnly =
+      !inputArgv.includes('--interactive') &&
+      (!requestedCommand || !summaryProcedureNames.has(requestedCommand));
+    const cliState = shouldUseSummaryOnly ? undefined : await getFullCliState();
+    const activeCleyeCommands = shouldUseSummaryOnly ? summaryCleyeCommands : cliState!.cleyeCommands;
+    const defaultCommand =
+      defaultProcedure &&
+      activeCleyeCommands.find(({ name }) => name === defaultProcedure);
 
     const parsedArgv = cleye.cli(
       {
@@ -256,41 +326,25 @@ export function createCli<R extends AnyRouter>({
           },
         },
         ...defaultCommand,
-        commands: cleyeCommands
+        commands: activeCleyeCommands
           .filter((cmd) => cmd.name !== defaultCommand?.name)
-          .map((cmd) => cleye.command(cmd)) as cleye.Command[],
-      },
+          .map((cmd) => cleye.command(cmd as any)) as cleye.Command[],
+      } as any,
       undefined,
       inputArgv
+    ) as ParsedCliArgv;
+
+    verboseErrors = Boolean(
+      (parsedArgv.unknownFlags as Record<string, unknown>).verboseErrors ??
+        parsedArgv.flags.verboseErrors
     );
 
-    const { verboseErrors: _verboseErrors, ...unknownFlags } = parsedArgv.unknownFlags as Record<
-      string,
-      unknown
-    >;
-    verboseErrors = _verboseErrors || parsedArgv.flags.verboseErrors;
-
-    type Context = NonNullable<typeof params.context>;
-
-    const caller = createTRPCProxyClient<R>({
-      links: [
-        linkFactory({
-          app: {
-            run: (commandString) => run({ argv: argv(commandString), logger, process }),
-          },
-          router,
-        }),
-      ],
-    });
-    // console.log("argv", parsedArgv);
-    // Adjust the die function to handle interactive mode
-    const isInteractive = parsedArgv.flags.interactive;
-    // console.log("vvv", isInteractive);
+    const isInteractive = Boolean(parsedArgv.flags.interactive);
     const die: Fail = (
       message: string,
       { cause, help = true }: { cause?: unknown; help?: boolean } = {}
     ) => {
-      if (verboseErrors !== undefined && verboseErrors) {
+      if (verboseErrors) {
         throw (cause as Error) || new Error(message);
       }
       logger.error?.(colors.red(message));
@@ -302,32 +356,53 @@ export function createCli<R extends AnyRouter>({
       }
     };
 
-    // Handle interactive mode
+    if (shouldUseSummaryOnly) {
+      if (parsedArgv.flags.help) {
+        return;
+      }
+
+      const name = JSON.stringify(requestedCommand || parsedArgv._[0]);
+      const message = name ? `Command not found: ${name}.` : 'No command specified.';
+      return die(message);
+    }
+
+    const fullCliState = cliState ?? (await getFullCliState());
+    const caller = createTRPCProxyClient({
+      links: [
+        linkFactory({
+          app: {
+            run: (commandString) => run({ argv: argv(commandString), logger, process: _process }),
+          },
+          router,
+        }),
+      ],
+    });
+
     if (isInteractive) {
       await runInteractive({
         runParams,
-        procedures: procedureMap,
         executeCommand,
         die,
         caller,
-        cleyeCommands,
+        cleyeCommands: fullCliState.cleyeCommands,
         logger,
         verboseErrors,
         defaultCommand,
         params,
+        procedureMap: fullCliState.procedureMap,
         process: _process,
       });
       return;
     }
 
-    // Execute the command
     await executeCommand(parsedArgv, {
       caller,
       die,
       logger,
       process: _process,
       verboseErrors,
-      cleyeCommands,
+      cleyeCommands: fullCliState.cleyeCommands,
+      procedureMap: fullCliState.procedureMap,
       params,
       rawArgs: inputArgv,
     });
@@ -406,7 +481,7 @@ export function createCli<R extends AnyRouter>({
 
   // Refactor command execution into a separate function
   async function executeCommand(
-    parsedArgv: ReturnType<typeof cleye.cli>,
+    parsedArgv: ParsedCliArgv,
     {
       caller,
       die,
@@ -414,6 +489,7 @@ export function createCli<R extends AnyRouter>({
       process,
       verboseErrors,
       cleyeCommands,
+      procedureMap,
       params,
       rawArgs,
     }: {
@@ -427,8 +503,9 @@ export function createCli<R extends AnyRouter>({
       };
       verboseErrors: boolean;
       cleyeCommands: CleyeCommandOptions[];
-      params: TrpcCliParams<R>;
-      rawArgs: string[]; // Add rawArgs to the parameter list
+      procedureMap: Record<string, ProcedureInfo>;
+      params: Omit<TrpcCliParams<R>, 'router'>;
+      rawArgs: string[];
     }
   ) {
     let { help, ...flags } = parsedArgv.flags;
@@ -464,8 +541,11 @@ export function createCli<R extends AnyRouter>({
     }
 
     // Manually collect multiple values for flags that accept arrays
-    const flagDefinitions = cleyeCommands.find((cmd) => cmd.name === procedureInfo.name)
-      ?.flags as Record<string, CleyeFlag>;
+    const flagDefinitions =
+      (cleyeCommands.find((cmd) => cmd.name === procedureInfo.name)?.flags as Record<
+        string,
+        CliFlagDefinition
+      > | undefined) ?? {};
 
     // Iterate over the flag definitions to handle multiple values
     for (const [flagName, flagDef] of Object.entries(flagDefinitions)) {
@@ -535,7 +615,6 @@ export function createCli<R extends AnyRouter>({
   // Implement the interactive loop
   async function runInteractive({
     runParams,
-    procedures,
     executeCommand,
     die,
     caller,
@@ -544,10 +623,10 @@ export function createCli<R extends AnyRouter>({
     verboseErrors,
     defaultCommand,
     params,
+    procedureMap,
     process,
   }: {
     runParams: any;
-    procedures: Record<string, any>;
     executeCommand: Function;
     die: Fail;
     caller: any;
@@ -555,7 +634,8 @@ export function createCli<R extends AnyRouter>({
     logger: Logger;
     verboseErrors: boolean;
     defaultCommand: CleyeCommandOptions | undefined;
-    params: TrpcCliParams<R>;
+    params: Omit<TrpcCliParams<R>, 'router'>;
+    procedureMap: Record<string, ProcedureInfo>;
     process: {
       stdin: NodeJS.ReadableStream;
       stdout: NodeJS.WritableStream;
@@ -572,47 +652,13 @@ export function createCli<R extends AnyRouter>({
     rl.prompt();
 
     rl.on('line', async (line: string) => {
-      let inputArgv = argv(line);
-
-      // Detect and reconstruct shorthand syntax
-      const commandName = inputArgv[0]; // 'cerebro.exec'; // Replace with your actual command name
-      let shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
-
-      // Reconstruct shorthand command from arguments after the command name
-      const shorthandResult = reconstructShorthandCommand(inputArgv.slice(shorthandIndex));
-      if (shorthandResult) {
-        const { shorthandCommand, remainingArgs } = shorthandResult;
-        // Parse the shorthand command
-        const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
-        const match = shorthandCommand.match(shorthandRegex);
-        if (match) {
-          const [, agent, method, paramsString] = match;
-          // Parse the paramsString into an array of parameters
-          const params = parseParamsString(paramsString);
-          // Replace the arguments with the full form
-          inputArgv = [
-            commandName,
-            '--agent',
-            agent,
-            '--method',
-            method,
-            '--params',
-            ...params,
-            ...remainingArgs,
-          ];
-        } else {
-          // Handle parsing error
-        }
-      }
-
-      // console.log(inputArgv);
+      const inputArgv = normalizeInputArgv(argv(line));
 
       if (inputArgv.length === 0 || !inputArgv[0]) {
         rl.prompt();
         return;
       }
 
-      // Parse the input arguments
       const parsedArgv = cleye.cli(
         {
           flags: {
@@ -625,13 +671,11 @@ export function createCli<R extends AnyRouter>({
           ...defaultCommand,
           commands: cleyeCommands
             .filter((cmd) => cmd.name !== defaultCommand?.name)
-            .map((cmd) => cleye.command(cmd)) as cleye.Command[],
-        },
+            .map((cmd) => cleye.command(cmd as any)) as cleye.Command[],
+        } as any,
         undefined,
         inputArgv
-      );
-
-      // console.log(parsedArgv);
+      ) as ParsedCliArgv;
 
       parsedArgv.flags.interactive = true;
 
@@ -643,12 +687,12 @@ export function createCli<R extends AnyRouter>({
           process,
           verboseErrors,
           cleyeCommands,
+          procedureMap,
           params,
-          rawArgs: inputArgv, // Pass inputArgv as rawArgs
+          rawArgs: inputArgv,
         });
       } catch (err) {
-        // Handle errors in interactive mode
-        die(err.message, { cause: err, help: false });
+        die(err instanceof Error ? err.message : String(err), { cause: err, help: false });
       }
 
       rl.prompt();
@@ -657,7 +701,135 @@ export function createCli<R extends AnyRouter>({
     });
   }
 
-  return { run, executeCommand, ignoredProcedures };
+  return {
+    run,
+    executeCommand,
+    get ignoredProcedures() {
+      return getIgnoredProcedures();
+    },
+  };
+}
+
+function parseParamsString(paramsString: string): string[] {
+  const params: string[] = [];
+  let currentParam = '';
+  let inQuotes = false;
+  let quoteChar = '';
+  let escape = false;
+  let sawParamToken = false;
+  let currentTokenQuoted = false;
+
+  const pushCurrentParam = () => {
+    params.push(currentTokenQuoted ? currentParam : currentParam.trim());
+    currentParam = '';
+    sawParamToken = false;
+    currentTokenQuoted = false;
+  };
+
+  for (let i = 0; i < paramsString.length; i++) {
+    const char = paramsString[i];
+
+    if (escape) {
+      currentParam += char;
+      sawParamToken = true;
+      escape = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escape = true;
+      sawParamToken = true;
+      continue;
+    }
+
+    if (inQuotes) {
+      if (char === quoteChar) {
+        inQuotes = false;
+        sawParamToken = true;
+      } else {
+        currentParam += char;
+        sawParamToken = true;
+      }
+    } else {
+      if (char === '"' || char === "'") {
+        if (currentParam.trim().length === 0) {
+          currentParam = '';
+        }
+        inQuotes = true;
+        quoteChar = char;
+        sawParamToken = true;
+        currentTokenQuoted = true;
+      } else if (char === ',') {
+        pushCurrentParam();
+      } else {
+        if (currentTokenQuoted && char.trim().length === 0) {
+          continue;
+        }
+        currentParam += char;
+        if (char.trim().length > 0) sawParamToken = true;
+      }
+    }
+  }
+
+  if (escape) {
+    currentParam += '\\';
+    sawParamToken = true;
+  }
+
+  if (sawParamToken || currentParam.trim().length > 0 || paramsString.trimEnd().endsWith(',')) {
+    pushCurrentParam();
+  }
+  return params;
+}
+
+function normalizeInputArgv(rawArgs: string[]): string[] {
+  let inputArgv = rawArgs.slice();
+  const commandName = inputArgv[0];
+  const shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
+  const shorthandResult = reconstructShorthandCommand(inputArgv.slice(shorthandIndex));
+
+  if (!shorthandResult) {
+    return inputArgv;
+  }
+
+  const { shorthandCommand, remainingArgs } = shorthandResult;
+  const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
+  const match = shorthandCommand.match(shorthandRegex);
+  if (!match) {
+    return inputArgv;
+  }
+
+  const [, agent, method, paramsString] = match;
+  const params = parseParamsString(paramsString);
+  return [
+    commandName,
+    '--agent',
+    agent,
+    '--method',
+    method,
+    ...(params.length > 0 ? ['--params', ...params] : []),
+    ...remainingArgs,
+  ];
+}
+
+function resolveRequestedCommand(inputArgv: string[], defaultProcedure?: string): string | undefined {
+  for (const token of inputArgv) {
+    if (token === '--') break;
+    if (
+      token === '--help' ||
+      token === '-h' ||
+      token === '--verboseErrors' ||
+      token === '--interactive'
+    ) {
+      continue;
+    }
+    if (token.startsWith('-')) {
+      continue;
+    }
+    return token.includes('(') ? token.split('(')[0] : token;
+  }
+
+  return defaultProcedure;
 }
 
 function reconstructShorthandCommand(
@@ -724,7 +896,7 @@ function isFlagToken(value: string): boolean {
 
 function isArrayFlagBoundary(
   value: string,
-  flagDefinitions: Record<string, CleyeFlag>
+  flagDefinitions: Record<string, CliFlagDefinition>
 ): boolean {
   if (!isFlagToken(value)) return false;
   if (value.startsWith('--')) return true;
@@ -792,10 +964,22 @@ function transformError(err: unknown, fail: Fail): unknown {
   return err;
 }
 
-type CleyeCommandOptions = cleye.Command['options'];
-type CleyeFlag = NonNullable<CleyeCommandOptions['flags']>[string];
+type CleyeCommandOptions = {
+  name: string;
+  help?: unknown;
+  parameters?: string[];
+  flags?: Record<string, CliFlagDefinition>;
+};
+type CliFlagDefinition = {
+  type: unknown;
+  description?: string;
+  placeholder?: string;
+  alias?: string;
+  multiple?: boolean;
+  default?: unknown;
+};
 
-function getCleyeType(schema: JsonSchema7Type): Extract<CleyeFlag, { type: unknown }>['type'] {
+function getCleyeType(schema: JsonSchema7Type): CliFlagDefinition['type'] {
   const _type = 'type' in schema && typeof schema.type === 'string' ? schema.type : null;
 
   switch (_type) {

@@ -24,10 +24,10 @@ test("can create cli from trpc v11", async () => {
     }),
   });
 
-  expect(router._def.procedures).toHaveProperty("foo.bar");
-  expect(router._def.procedures).not.toHaveProperty("foo");
-  expect(router._def.procedures).toHaveProperty("abc.def");
-  expect(router._def.procedures).not.toHaveProperty("abc");
+  expect(Object.prototype.hasOwnProperty.call(router._def.procedures, "foo.bar")).toBe(true);
+  expect(Object.prototype.hasOwnProperty.call(router._def.procedures, "foo")).toBe(false);
+  expect(Object.prototype.hasOwnProperty.call(router._def.procedures, "abc.def")).toBe(true);
+  expect(Object.prototype.hasOwnProperty.call(router._def.procedures, "abc")).toBe(false);
 
   const cli = createCli({
     router,

@@ -1,5 +1,5 @@
 import { initTRPC, type Router } from "@trpc/server";
-import stripAnsi from "strip-ansi";
+import { stripVTControlCharacters } from "node:util";
 import { expect, test } from "vitest";
 import { z } from "zod";
 import { createCli, type TrpcCliMeta, type TrpcCliParams } from "../src";
@@ -14,7 +14,7 @@ expect.addSnapshotSerializer({
       err = err.cause;
       messages.push("  ".repeat(messages.length) + "Caused by: " + err.message);
     }
-    return stripAnsi(messages.join("\n"));
+    return stripVTControlCharacters(messages.join("\n"));
   },
 });
 

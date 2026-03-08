@@ -1,5 +1,10 @@
 import type { JsonSchema7Type } from 'zod-to-json-schema';
-import type { AnyRouter, CreateCallerFactoryLike, InferRouterContext } from './trpc-compat';
+import type {
+  AnyRouter,
+  CreateCallerFactoryLike,
+  InferRouterContext,
+  RouterProcedureKey,
+} from './trpc-compat';
 
 export type TrpcCliParams<R extends AnyRouter> = {
   router: R;
@@ -10,7 +15,7 @@ export type TrpcCliParams<R extends AnyRouter> = {
     meta: { command: string; flags: Record<string, unknown> }
   ) => string | undefined;
   default?: {
-    procedure: keyof R['_def']['procedures'];
+    procedure: RouterProcedureKey<R>;
   };
   createCallerFactory?: CreateCallerFactoryLike;
 };

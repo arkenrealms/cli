@@ -1,12 +1,23 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/tests"], // Point to the 'tests' directory in the root
-  collectCoverageFrom: ["<rootDir>/src/**/*.{ts,tsx}"], // Collect coverage from source files
+  roots: ["<rootDir>/test"],
+  collectCoverageFrom: [
+    "<rootDir>/**/*.ts",
+    "!<rootDir>/build/**",
+    "!<rootDir>/test/**",
+    "!<rootDir>/bin/**",
+    "!<rootDir>/jest.unit.config.js",
+  ],
   coverageDirectory: "./coverage",
-  testMatch: ["**/*.test.ts", "**/*.test.tsx"], // Match test files in 'tests' directory
+  testMatch: ["<rootDir>/test/**/*.test.ts", "<rootDir>/test/**/*.test.tsx"],
   moduleFileExtensions: ["ts", "tsx", "js", "jsx", "json", "node"],
   transform: {
-    "^.+\\.tsx?$": "ts-jest", // Use ts-jest for transforming TypeScript files
+    "^.+\\.tsx?$": "ts-jest",
   },
+  moduleNameMapper: {
+    "^vitest$": "<rootDir>/test/vitest.ts",
+  },
+  testPathIgnorePatterns: ["<rootDir>/build/"],
+  testTimeout: 30000,
 };

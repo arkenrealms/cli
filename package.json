@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "build": "tsc -p tsconfig.lib.json",
-    "test": "vitest run",
-    "test:jest": "jest --coverage --config=jest.unit.config.js",
+    "build": "tsc -p tsconfig.build.json",
+    "test": "jest --coverage --config=jest.unit.config.js",
     "test:watch": "jest --watch --collect-coverage --config=jest.unit.config.js",
     "test:coverage": "jest --coverage",
     "lint": "eslint --max-warnings=0 .",
@@ -43,6 +42,7 @@
     "commander": "^12",
     "enquirer": "^2",
     "ts-node-dev": "^2",
+    "socket.io-client": "^4",
     "cleye": "^1",
     "picocolors": "^1",
     "zod-to-json-schema": "^3",
@@ -55,8 +55,11 @@
     "pkg-pr-new": "^0",
     "strip-ansi": "^7",
     "tsx": "^4",
-    "vitest": "^2",
     "string-argv": "~0.3.2",
     "dotenv": "^16"
+  },
+  "devDependencies": {
+    "socket.io": "^4",
+    "ts-jest": "^29"
   }
 }

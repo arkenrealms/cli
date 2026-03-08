@@ -1,14 +1,14 @@
-import { z } from 'zod';
+import { z, type ZodTypeAny } from 'zod';
 import zodToJsonSchema from 'zod-to-json-schema';
 import type { Result, ParsedProcedure } from './types';
 import { looksLikeInstanceof } from './util';
 
-function getInnerType(zodType: z.ZodType): z.ZodType {
+function getInnerType(zodType: ZodTypeAny): ZodTypeAny {
   if (looksLikeInstanceof(zodType, z.ZodOptional) || looksLikeInstanceof(zodType, z.ZodNullable)) {
-    return getInnerType(zodType._def.innerType as z.ZodType);
+    return getInnerType(zodType._def.innerType as ZodTypeAny);
   }
   if (looksLikeInstanceof(zodType, z.ZodEffects)) {
-    return getInnerType(zodType.innerType() as z.ZodType);
+    return getInnerType(zodType.innerType() as ZodTypeAny);
   }
   return zodType;
 }
@@ -43,12 +43,12 @@ export function parseProcedureInputs(inputs: unknown[]): Result<ParsedProcedure>
     return parseLiteralInput(mergedSchema);
   }
 
-  if (looksLikeInstanceof<z.ZodTuple<never>>(mergedSchema, z.ZodTuple)) {
+  if (looksLikeInstanceof(mergedSchema, z.ZodTuple)) {
     return parseTupleInput(mergedSchema);
   }
 
   if (
-    looksLikeInstanceof<z.ZodArray<never>>(mergedSchema, z.ZodArray) &&
+    looksLikeInstanceof(mergedSchema, z.ZodArray) &&
     acceptedLiteralTypes(mergedSchema.element).length > 0
   ) {
     return parseArrayInput(mergedSchema);
@@ -57,9 +57,7 @@ export function parseProcedureInputs(inputs: unknown[]): Result<ParsedProcedure>
   if (!acceptsObject(mergedSchema) && !acceptsAny(mergedSchema)) {
     return {
       success: false,
-      error: `Invalid input type ${
-        getInnerType(mergedSchema).constructor.name
-      }, expected object or tuple`,
+      error: `Invalid input type ${getInnerType(mergedSchema).constructor.name}, expected object or tuple`,
     };
   }
 
@@ -67,13 +65,13 @@ export function parseProcedureInputs(inputs: unknown[]): Result<ParsedProcedure>
     success: true,
     value: {
       parameters: [],
-      flagsSchema: zodToJsonSchema(mergedSchema),
+      flagsSchema: zodToJsonSchema(mergedSchema as any),
       getInput: (argv) => argv.flags,
     },
   };
 }
 
-function parseLiteralInput(schema: z.ZodType<string> | z.ZodType<number>): Result<ParsedProcedure> {
+function parseLiteralInput(schema: ZodTypeAny): Result<ParsedProcedure> {
   const type = acceptedLiteralTypes(schema).at(0);
   const name = schema.description || type || 'value';
   return {
@@ -86,7 +84,7 @@ function parseLiteralInput(schema: z.ZodType<string> | z.ZodType<number>): Resul
   };
 }
 
-function acceptedLiteralTypes(schema: z.ZodType) {
+function acceptedLiteralTypes(schema: ZodTypeAny) {
   const types: Array<'string' | 'number' | 'boolean'> = [];
   if (acceptsBoolean(schema)) types.push('boolean');
   if (acceptsNumber(schema)) types.push('number');
@@ -94,7 +92,7 @@ function acceptedLiteralTypes(schema: z.ZodType) {
   return types;
 }
 
-function parseMultiInputs(inputs: z.ZodType[]): Result<ParsedProcedure> {
+function parseMultiInputs(inputs: ZodTypeAny[]): Result<ParsedProcedure> {
   const allObjects = inputs.every(acceptsObject);
   if (!allObjects) {
     return {
@@ -107,7 +105,9 @@ function parseMultiInputs(inputs: z.ZodType[]): Result<ParsedProcedure> {
 
   const parsedIndividually = inputs.map((input) => parseProcedureInputs([input]));
 
-  const failures = parsedIndividually.flatMap((p) => (p.success ? [] : [p.error]));
+  const failures = parsedIndividually.flatMap((parsed) =>
+    parsed.success === false ? [parsed.error] : []
+  );
   if (failures.length > 0) {
     return { success: false, error: failures.join('\n') };
   }
@@ -117,17 +117,16 @@ function parseMultiInputs(inputs: z.ZodType[]): Result<ParsedProcedure> {
     value: {
       parameters: [],
       flagsSchema: {
-        allOf: parsedIndividually.map((p) => {
-          const successful = p as Extract<typeof p, { success: true }>;
-          return successful.value.flagsSchema;
-        }),
+        allOf: parsedIndividually.flatMap((parsed) =>
+          parsed.success ? [parsed.value.flagsSchema] : []
+        ),
       },
       getInput: (argv) => argv.flags,
     },
   };
 }
 
-function parseArrayInput(array: z.ZodArray<z.ZodType>): Result<ParsedProcedure> {
+function parseArrayInput(array: z.ZodArray<ZodTypeAny>): Result<ParsedProcedure> {
   if (looksLikeInstanceof(array.element, z.ZodNullable)) {
     return {
       success: false,
@@ -146,13 +145,13 @@ function parseArrayInput(array: z.ZodArray<z.ZodType>): Result<ParsedProcedure> 
   };
 }
 
-function parseTupleInput(tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>): Result<ParsedProcedure> {
+function parseTupleInput(tuple: z.ZodTuple<any, any>): Result<ParsedProcedure> {
   const nonPositionalIndex = tuple.items.findIndex((item) => {
     if (acceptedLiteralTypes(item).length > 0) {
       return false; // it's a string, number or boolean
     }
     if (
-      looksLikeInstanceof<z.ZodArray<never>>(item, z.ZodArray) &&
+      looksLikeInstanceof(item, z.ZodArray) &&
       acceptedLiteralTypes(item.element).length > 0
     ) {
       return false; // it's an array of strings, numbers or booleans
@@ -175,7 +174,7 @@ function parseTupleInput(tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>): Result
   const postionalParametersToTupleInput = (argv: { _: string[]; flags: {} }) => {
     if (
       positionalSchemas.length === 1 &&
-      looksLikeInstanceof<z.ZodArray<never>>(positionalSchemas[0], z.ZodArray)
+      looksLikeInstanceof(positionalSchemas[0], z.ZodArray)
     ) {
       const element = positionalSchemas[0].element;
       return [argv._.map((s) => convertPositional(element, s))];
@@ -208,7 +207,7 @@ function parseTupleInput(tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>): Result
     success: true,
     value: {
       parameters: parameterNames,
-      flagsSchema: zodToJsonSchema(last),
+      flagsSchema: zodToJsonSchema(last as any),
       getInput: (argv) => [...postionalParametersToTupleInput(argv), argv.flags],
     },
   };
@@ -219,7 +218,7 @@ function parseTupleInput(tuple: z.ZodTuple<[z.ZodType, ...z.ZodType[]]>): Result
  * If the target schema accepts numbers but it's *not* a valid number, just return a string.
  * trpc will use zod to handle the validation before invoking the procedure.
  */
-const convertPositional = (schema: z.ZodType, value: string) => {
+const convertPositional = (schema: ZodTypeAny, value: string) => {
   let preprocessed: string | number | boolean | undefined = undefined;
 
   const acceptedTypes = new Set(acceptedLiteralTypes(schema));
@@ -257,8 +256,8 @@ const convertPositional = (schema: z.ZodType, value: string) => {
   return preprocessed;
 };
 
-const parameterName = (s: z.ZodType, position: number): string => {
-  if (looksLikeInstanceof<z.ZodArray<never>>(s, z.ZodArray)) {
+const parameterName = (s: ZodTypeAny, position: number): string => {
+  if (looksLikeInstanceof(s, z.ZodArray)) {
     const elementName = parameterName(s.element, position);
     return `[${elementName.slice(1, -1)}...]`;
   }
@@ -283,8 +282,8 @@ const parameterName = (s: z.ZodType, position: number): string => {
  * acceptsString(z.intersection(z.string(), z.number())) // false
  * acceptsString(z.intersection(z.string(), z.string().max(10))) // true
  */
-export function accepts<ZodTarget extends z.ZodType>(target: ZodTarget) {
-  const test = (zodType: z.ZodType): boolean => {
+export function accepts<ZodTarget extends ZodTypeAny>(target: ZodTarget) {
+  const test = (zodType: ZodTypeAny): boolean => {
     const innerType = getInnerType(zodType);
     if (looksLikeInstanceof(innerType, target.constructor as new (...args: unknown[]) => ZodTarget))
       return true;
@@ -293,9 +292,9 @@ export function accepts<ZodTarget extends z.ZodType>(target: ZodTarget) {
     if (looksLikeInstanceof(innerType, z.ZodEnum))
       return innerType.options.some((o) => target.safeParse(o).success);
     if (looksLikeInstanceof(innerType, z.ZodUnion)) return innerType.options.some(test);
-    if (looksLikeInstanceof<z.ZodEffects<z.ZodType>>(innerType, z.ZodEffects))
+    if (looksLikeInstanceof(innerType, z.ZodEffects))
       return test(innerType.innerType());
-    if (looksLikeInstanceof<z.ZodIntersection<z.ZodType, z.ZodType>>(innerType, z.ZodIntersection))
+    if (looksLikeInstanceof(innerType, z.ZodIntersection))
       return test(innerType._def.left) && test(innerType._def.right);
 
     return false;

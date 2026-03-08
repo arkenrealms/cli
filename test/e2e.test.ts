@@ -1,20 +1,38 @@
-import { execa } from "execa";
+import { spawn } from "node:child_process";
 import * as path from "path";
-import stripAnsi from "strip-ansi";
+import { stripVTControlCharacters } from "node:util";
 import { expect, test } from "vitest";
 import "../src"; // Ensure that Vitest watches for changes
 
 const tsx = async (file: string, args: string[]) => {
-  const { all } = await execa(
-    "npx",
-    ["tsx", `test/fixtures/${file}`, ...args],
-    {
-      all: true,
-      reject: false,
-      cwd: path.join(__dirname, ".."),
-    }
-  );
-  return stripAnsi(all || "");
+  const cwd = path.join(__dirname, "..");
+  const command =
+    process.platform === "win32"
+      ? path.join(cwd, "node_modules", ".bin", "tsx.cmd")
+      : path.join(cwd, "node_modules", ".bin", "tsx");
+
+  return await new Promise<string>((resolve, reject) => {
+    const child = spawn(command, [`test/fixtures/${file}`, ...args], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let output = "";
+    child.stdout.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.stderr.on("data", (chunk) => {
+      output += chunk.toString();
+    });
+    child.on("error", reject);
+    child.on("close", () => {
+      resolve(
+        stripVTControlCharacters(output)
+          .replace(/\r\n/g, "\n")
+          .replace(/\n$/, "")
+      );
+    });
+  });
 };
 
 test("cli help", async () => {
@@ -358,7 +376,7 @@ test("fs copy", async () => {
             --trim                     Trim start/end whitespace
       "
     `);
-}, 15000);
+}, 120000);
 
 test("fs diff", async () => {
   expect(await tsx("fs", ["diff", "--help"])).toMatchInlineSnapshot(`
@@ -383,4 +401,4 @@ test("fs diff", async () => {
   expect(
     await tsx("fs", ["diff", "three", "four", "--ignore-whitespace"])
   ).toMatchInlineSnapshot(`"null"`);
-}, 15000);
+}, 120000);
