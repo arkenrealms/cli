@@ -47,6 +47,33 @@ const ROUTE_KEYS = [
 
 type RouteKey = (typeof ROUTE_KEYS)[number];
 
+const DEFAULT_REMOTE_REQUEST_TIMEOUT_MS = 15_000;
+const DEFAULT_CEREBRO_REQUEST_TIMEOUT_MS = 300_000;
+
+const clampRequestTimeoutMs = (value: number, fallback: number) => {
+  const normalized = Number.isFinite(value) ? Math.floor(value) : fallback;
+  return Math.max(1_000, Math.min(900_000, normalized));
+};
+
+export function resolveRouteRequestTimeoutMs(routeKey: RouteKey, env: NodeJS.ProcessEnv = process.env): number {
+  const routeKeyPrefix = routeKey.toUpperCase().replace(/-/g, '_');
+  const defaultValue = routeKey === 'cerebro' ? DEFAULT_CEREBRO_REQUEST_TIMEOUT_MS : DEFAULT_REMOTE_REQUEST_TIMEOUT_MS;
+  const candidates = [
+    env[`ARKEN_CLI_${routeKeyPrefix}_REQUEST_TIMEOUT_MS`],
+    routeKey === 'cerebro' ? env.ARKEN_CLI_CEREBRO_REQUEST_TIMEOUT_MS : undefined,
+    env.ARKEN_CLI_REMOTE_REQUEST_TIMEOUT_MS,
+  ];
+
+  for (const candidate of candidates) {
+    const numeric = Number.parseInt(String(candidate || '').trim(), 10);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return clampRequestTimeoutMs(numeric, defaultValue);
+    }
+  }
+
+  return defaultValue;
+}
+
 const createApplicationRoute = () => {
   return createApplicationRouter(new ApplicationService());
 };
@@ -294,21 +321,27 @@ function hasProcedure(routerCandidate: any, procedurePath: string) {
   return Boolean(procedures && Object.prototype.hasOwnProperty.call(procedures, procedurePath));
 }
 
-function createRemoteOperationLink(runtime: Parameters<TRPCLink<any>>[0]) {
+function createRemoteOperationLink(runtime: Parameters<TRPCLink<any>>[0], routeKey: RouteKey) {
+  const client = getOrCreateClient(routeKey);
+  const url = getRouteDef(routeKey).remoteUrl?.();
+  if (!client || !url) {
+    throw new TRPCClientError(`Remote route unavailable: ${routeKey}`);
+  }
+
   return createSocketLink({
-    backends: getBackends(),
-    clients: clients as Record<string, Client>,
+    backends: [{ name: routeKey, url }],
+    clients: { [routeKey]: client },
     waitUntil: (predicate) => waitUntil(predicate, 15_000),
     notifyTRPCError: () => undefined,
-    requestTimeoutMs: 15_000,
+    requestTimeoutMs: resolveRouteRequestTimeoutMs(routeKey),
   })(runtime);
 }
 
 function createOperationLink(runtime: Parameters<TRPCLink<any>>[0]) {
-  let remoteOperationLink: ReturnType<TRPCLink<any>> | undefined;
+  const remoteOperationLinks: Partial<Record<RouteKey, ReturnType<TRPCLink<any>>>> = {};
 
-  const getRemoteOperationLink = () => {
-    return (remoteOperationLink ??= createRemoteOperationLink(runtime));
+  const getRemoteOperationLink = (routeKey: RouteKey) => {
+    return (remoteOperationLinks[routeKey] ??= createRemoteOperationLink(runtime, routeKey));
   };
 
   return ({ op, next }) => {
@@ -344,7 +377,7 @@ function createOperationLink(runtime: Parameters<TRPCLink<any>>[0]) {
     if (routeKey) {
       const remoteClient = getOrCreateClient(routeKey);
       if (remoteClient) {
-        return getRemoteOperationLink()({ op, next });
+        return getRemoteOperationLink(routeKey)({ op, next });
       }
     }
 
