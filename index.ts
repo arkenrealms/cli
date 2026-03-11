@@ -13,6 +13,15 @@ import { AnyProcedure, AnyRouter, isTrpc11Procedure } from './trpc-compat';
 import { observable } from '@trpc/server/observable';
 import { Logger, TrpcCliParams } from './types';
 import { looksLikeInstanceof } from './util';
+import { createCliBenchmarkRecorder } from './benchmark-runtime';
+import { maybeEmitInteractiveReadyMarker } from './interactive-ready';
+import {
+  getSummaryCommandDescription,
+  normalizeInputArgv,
+  renderSummaryHelp,
+  resolveRequestedCommand,
+  type SummaryCommandInfo,
+} from './summary-cli';
 
 export * from './types';
 
@@ -122,12 +131,10 @@ export function createCli<R extends AnyRouter>({
     procedure,
   }));
   const summaryProcedureNames = new Set(procedureSummaries.map(({ name }) => name));
-  const summaryCleyeCommands: CleyeCommandOptions[] = procedureSummaries.map(
-    ({ name, procedure }) => ({
-      name,
-      help: procedure._def.meta,
-    })
-  );
+  const summaryCommands: SummaryCommandInfo[] = procedureSummaries.map(({ name, procedure }) => ({
+    name,
+    description: getSummaryCommandDescription(procedure._def.meta),
+  }));
   const ignoredProcedures: { procedure: string; reason: string }[] = [];
   let parseProcedureInputsPromise:
     | Promise<typeof import('./zod-procedure').parseProcedureInputs>
@@ -300,112 +307,191 @@ export function createCli<R extends AnyRouter>({
     let verboseErrors: boolean = false;
     const rawArgs = runParams?.argv || process.argv.slice(2);
     const inputArgv = normalizeInputArgv(rawArgs);
+    const benchmarkRecorder = createCliBenchmarkRecorder({
+      argv: inputArgv,
+    });
+    const benchmarkProcess = {
+      ..._process,
+      exit: benchmarkRecorder.wrapProcessExit(_process.exit.bind(_process)),
+    };
     const defaultProcedure = params.default ? String(params.default.procedure) : undefined;
     const requestedCommand = resolveRequestedCommand(inputArgv, defaultProcedure);
     const shouldUseSummaryOnly =
       !inputArgv.includes('--interactive') &&
       (!requestedCommand || !summaryProcedureNames.has(requestedCommand));
-    const cliState = shouldUseSummaryOnly ? undefined : await getFullCliState();
-    const activeCleyeCommands = shouldUseSummaryOnly ? summaryCleyeCommands : cliState!.cleyeCommands;
-    const defaultCommand =
-      defaultProcedure &&
-      activeCleyeCommands.find(({ name }) => name === defaultProcedure);
+    const requestedSummaryHelp = shouldUseSummaryOnly && inputArgv.includes('--help');
+    const effectiveInputArgv = requestedSummaryHelp
+      ? inputArgv.filter((arg) => arg !== '--help')
+      : inputArgv;
+    try {
+      if (shouldUseSummaryOnly) {
+        verboseErrors = inputArgv.includes('--verboseErrors');
+        const isInteractive = false;
+        const benchmarkCommand = requestedCommand || null;
+        benchmarkRecorder.markInitialized({
+          command: benchmarkCommand,
+          interactive: isInteractive,
+          summaryOnly: true,
+        });
 
-    const parsedArgv = cleye.cli(
-      {
-        flags: {
-          verboseErrors: {
-            type: Boolean,
-            description: `Throw raw errors (by default errors are summarised)`,
-            default: false,
-          },
-          interactive: {
-            type: Boolean,
-            description: `Enter interactive mode`,
-            default: false,
-          },
-        },
-        ...defaultCommand,
-        commands: activeCleyeCommands
-          .filter((cmd) => cmd.name !== defaultCommand?.name)
-          .map((cmd) => cleye.command(cmd as any)) as cleye.Command[],
-      } as any,
-      undefined,
-      inputArgv
-    ) as ParsedCliArgv;
+        if (requestedSummaryHelp || inputArgv.includes('-h')) {
+          renderSummaryHelp({
+            logger,
+            commands: summaryCommands,
+          });
+          benchmarkRecorder.complete({
+            exitCode: 0,
+            command: benchmarkCommand,
+            interactive: isInteractive,
+            summaryOnly: true,
+          });
+          return;
+        }
 
-    verboseErrors = Boolean(
-      (parsedArgv.unknownFlags as Record<string, unknown>).verboseErrors ??
-        parsedArgv.flags.verboseErrors
-    );
-
-    const isInteractive = Boolean(parsedArgv.flags.interactive);
-    const die: Fail = (
-      message: string,
-      { cause, help = true }: { cause?: unknown; help?: boolean } = {}
-    ) => {
-      if (verboseErrors) {
-        throw (cause as Error) || new Error(message);
+        const name = JSON.stringify(requestedCommand || inputArgv[0]);
+        const message = name ? `Command not found: ${name}.` : 'No command specified.';
+        if (verboseErrors) {
+          throw new Error(message);
+        }
+        logger.error?.(colors.red(message));
+        renderSummaryHelp({
+          logger,
+          commands: summaryCommands,
+        });
+        benchmarkProcess.exit(1);
       }
-      logger.error?.(colors.red(message));
-      if (help) {
-        parsedArgv.showHelp();
-      }
-      if (!isInteractive) {
-        _process.exit(1);
-      }
-    };
 
-    if (shouldUseSummaryOnly) {
-      if (parsedArgv.flags.help) {
+      const caller = createTRPCProxyClient({
+        links: [
+          linkFactory({
+            app: {
+              run: (commandString) =>
+                run({ argv: argv(commandString), logger, process: benchmarkProcess }),
+            },
+            router,
+          }),
+        ],
+      });
+
+      if (inputArgv.includes('--interactive')) {
+        verboseErrors = inputArgv.includes('--verboseErrors') || inputArgv.includes('--verbose-errors');
+        benchmarkRecorder.markInitialized({
+          command: requestedCommand || null,
+          interactive: true,
+          summaryOnly: false,
+        });
+
+        const die: Fail = (
+          message: string,
+          { cause }: { cause?: unknown; help?: boolean } = {}
+        ) => {
+          if (verboseErrors) {
+            throw (cause as Error) || new Error(message);
+          }
+          logger.error?.(colors.red(message));
+        };
+
+        await runInteractive({
+          runParams,
+          executeCommand,
+          die,
+          caller,
+          getFullCliState,
+          logger,
+          verboseErrors,
+          defaultProcedure,
+          params,
+          process: benchmarkProcess,
+        });
         return;
       }
 
-      const name = JSON.stringify(requestedCommand || parsedArgv._[0]);
-      const message = name ? `Command not found: ${name}.` : 'No command specified.';
-      return die(message);
-    }
+      const cliState = await getFullCliState();
+      const activeCleyeCommands = cliState.cleyeCommands;
+      const defaultCommand =
+        defaultProcedure && activeCleyeCommands.find(({ name }) => name === defaultProcedure);
 
-    const fullCliState = cliState ?? (await getFullCliState());
-    const caller = createTRPCProxyClient({
-      links: [
-        linkFactory({
-          app: {
-            run: (commandString) => run({ argv: argv(commandString), logger, process: _process }),
+      const parsedArgv = cleye.cli(
+        {
+          flags: {
+            verboseErrors: {
+              type: Boolean,
+              description: `Throw raw errors (by default errors are summarised)`,
+              default: false,
+            },
+            interactive: {
+              type: Boolean,
+              description: `Enter interactive mode`,
+              default: false,
+            },
           },
-          router,
-        }),
-      ],
-    });
+          ...defaultCommand,
+          commands: activeCleyeCommands
+            .filter((cmd) => cmd.name !== defaultCommand?.name)
+            .map((cmd) => cleye.command(cmd as any)) as cleye.Command[],
+        } as any,
+        undefined,
+        effectiveInputArgv
+      ) as ParsedCliArgv;
 
-    if (isInteractive) {
-      await runInteractive({
-        runParams,
-        executeCommand,
-        die,
-        caller,
-        cleyeCommands: fullCliState.cleyeCommands,
-        logger,
-        verboseErrors,
-        defaultCommand,
-        params,
-        procedureMap: fullCliState.procedureMap,
-        process: _process,
+      verboseErrors = Boolean(
+        (parsedArgv.unknownFlags as Record<string, unknown>).verboseErrors ??
+          parsedArgv.flags.verboseErrors
+      );
+
+      const isInteractive = Boolean(parsedArgv.flags.interactive);
+      const benchmarkCommand = requestedCommand || parsedArgv.command || parsedArgv._[0] || null;
+      const die: Fail = (
+        message: string,
+        { cause, help = true }: { cause?: unknown; help?: boolean } = {}
+      ) => {
+        if (verboseErrors) {
+          throw (cause as Error) || new Error(message);
+        }
+        logger.error?.(colors.red(message));
+        if (help) {
+          parsedArgv.showHelp();
+        }
+        if (!isInteractive) {
+          benchmarkProcess.exit(1);
+        }
+      }
+
+      const fullCliState = cliState ?? (await getFullCliState());
+
+      benchmarkRecorder.markInitialized({
+        command: benchmarkCommand,
+        interactive: isInteractive,
+        summaryOnly: false,
       });
-      return;
-    }
 
-    await executeCommand(parsedArgv, {
-      caller,
-      die,
-      logger,
-      process: _process,
-      verboseErrors,
-      cleyeCommands: fullCliState.cleyeCommands,
-      procedureMap: fullCliState.procedureMap,
-      params,
-      rawArgs: inputArgv,
-    });
+      await executeCommand(parsedArgv, {
+        caller,
+        die,
+        logger,
+        process: benchmarkProcess,
+        verboseErrors,
+        cleyeCommands: fullCliState.cleyeCommands,
+        procedureMap: fullCliState.procedureMap,
+        params,
+        rawArgs: inputArgv,
+      });
+
+      benchmarkRecorder.complete({
+        exitCode: 0,
+        command: benchmarkCommand,
+        interactive: isInteractive,
+        summaryOnly: false,
+      });
+    } catch (error) {
+      benchmarkRecorder.fail({
+        exitCode: 1,
+        command: requestedCommand || null,
+        failureMessage: error instanceof Error ? error.message : String(error),
+        summaryOnly: shouldUseSummaryOnly,
+      });
+      throw error;
+    }
   }
   function parseParamsString(paramsString: string): string[] {
     const params: string[] = [];
@@ -618,24 +704,22 @@ export function createCli<R extends AnyRouter>({
     executeCommand,
     die,
     caller,
-    cleyeCommands,
+    getFullCliState,
     logger,
     verboseErrors,
-    defaultCommand,
+    defaultProcedure,
     params,
-    procedureMap,
     process,
   }: {
     runParams: any;
     executeCommand: Function;
     die: Fail;
     caller: any;
-    cleyeCommands: CleyeCommandOptions[];
+    getFullCliState: () => Promise<FullCliState>;
     logger: Logger;
     verboseErrors: boolean;
-    defaultCommand: CleyeCommandOptions | undefined;
+    defaultProcedure: string | undefined;
     params: Omit<TrpcCliParams<R>, 'router'>;
-    procedureMap: Record<string, ProcedureInfo>;
     process: {
       stdin: NodeJS.ReadableStream;
       stdout: NodeJS.WritableStream;
@@ -649,6 +733,7 @@ export function createCli<R extends AnyRouter>({
       prompt: '> ',
     });
 
+    maybeEmitInteractiveReadyMarker(process);
     rl.prompt();
 
     rl.on('line', async (line: string) => {
@@ -658,6 +743,11 @@ export function createCli<R extends AnyRouter>({
         rl.prompt();
         return;
       }
+
+      const fullCliState = await getFullCliState();
+      const defaultCommand =
+        defaultProcedure &&
+        fullCliState.cleyeCommands.find(({ name }) => name === defaultProcedure);
 
       const parsedArgv = cleye.cli(
         {
@@ -669,7 +759,7 @@ export function createCli<R extends AnyRouter>({
             },
           },
           ...defaultCommand,
-          commands: cleyeCommands
+          commands: fullCliState.cleyeCommands
             .filter((cmd) => cmd.name !== defaultCommand?.name)
             .map((cmd) => cleye.command(cmd as any)) as cleye.Command[],
         } as any,
@@ -686,8 +776,8 @@ export function createCli<R extends AnyRouter>({
           logger,
           process,
           verboseErrors,
-          cleyeCommands,
-          procedureMap,
+          cleyeCommands: fullCliState.cleyeCommands,
+          procedureMap: fullCliState.procedureMap,
           params,
           rawArgs: inputArgv,
         });
@@ -708,179 +798,6 @@ export function createCli<R extends AnyRouter>({
       return getIgnoredProcedures();
     },
   };
-}
-
-function parseParamsString(paramsString: string): string[] {
-  const params: string[] = [];
-  let currentParam = '';
-  let inQuotes = false;
-  let quoteChar = '';
-  let escape = false;
-  let sawParamToken = false;
-  let currentTokenQuoted = false;
-
-  const pushCurrentParam = () => {
-    params.push(currentTokenQuoted ? currentParam : currentParam.trim());
-    currentParam = '';
-    sawParamToken = false;
-    currentTokenQuoted = false;
-  };
-
-  for (let i = 0; i < paramsString.length; i++) {
-    const char = paramsString[i];
-
-    if (escape) {
-      currentParam += char;
-      sawParamToken = true;
-      escape = false;
-      continue;
-    }
-
-    if (char === '\\') {
-      escape = true;
-      sawParamToken = true;
-      continue;
-    }
-
-    if (inQuotes) {
-      if (char === quoteChar) {
-        inQuotes = false;
-        sawParamToken = true;
-      } else {
-        currentParam += char;
-        sawParamToken = true;
-      }
-    } else {
-      if (char === '"' || char === "'") {
-        if (currentParam.trim().length === 0) {
-          currentParam = '';
-        }
-        inQuotes = true;
-        quoteChar = char;
-        sawParamToken = true;
-        currentTokenQuoted = true;
-      } else if (char === ',') {
-        pushCurrentParam();
-      } else {
-        if (currentTokenQuoted && char.trim().length === 0) {
-          continue;
-        }
-        currentParam += char;
-        if (char.trim().length > 0) sawParamToken = true;
-      }
-    }
-  }
-
-  if (escape) {
-    currentParam += '\\';
-    sawParamToken = true;
-  }
-
-  if (sawParamToken || currentParam.trim().length > 0 || paramsString.trimEnd().endsWith(',')) {
-    pushCurrentParam();
-  }
-  return params;
-}
-
-function normalizeInputArgv(rawArgs: string[]): string[] {
-  let inputArgv = rawArgs.slice();
-  const commandName = inputArgv[0];
-  const shorthandIndex = inputArgv[0] === commandName ? 1 : 0;
-  const shorthandResult = reconstructShorthandCommand(inputArgv.slice(shorthandIndex));
-
-  if (!shorthandResult) {
-    return inputArgv;
-  }
-
-  const { shorthandCommand, remainingArgs } = shorthandResult;
-  const shorthandRegex = /^([\w-]+)\.([\w-]+)\((.*)\)$/s;
-  const match = shorthandCommand.match(shorthandRegex);
-  if (!match) {
-    return inputArgv;
-  }
-
-  const [, agent, method, paramsString] = match;
-  const params = parseParamsString(paramsString);
-  return [
-    commandName,
-    '--agent',
-    agent,
-    '--method',
-    method,
-    ...(params.length > 0 ? ['--params', ...params] : []),
-    ...remainingArgs,
-  ];
-}
-
-function resolveRequestedCommand(inputArgv: string[], defaultProcedure?: string): string | undefined {
-  for (const token of inputArgv) {
-    if (token === '--') break;
-    if (
-      token === '--help' ||
-      token === '-h' ||
-      token === '--verboseErrors' ||
-      token === '--interactive'
-    ) {
-      continue;
-    }
-    if (token.startsWith('-')) {
-      continue;
-    }
-    return token.includes('(') ? token.split('(')[0] : token;
-  }
-
-  return defaultProcedure;
-}
-
-function reconstructShorthandCommand(
-  argv: string[]
-): { shorthandCommand: string; remainingArgs: string[] } | null {
-  let shorthandCommandParts = [];
-  let startIndex = -1;
-  let parenDepth = 0;
-  let found = false;
-
-  // Find the start of the shorthand command
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    if (!arg.startsWith('--')) {
-      if (arg.includes('.') && arg.includes('(')) {
-        startIndex = i;
-        break;
-      }
-    }
-  }
-
-  if (startIndex === -1) {
-    // No shorthand command found
-    return null;
-  }
-
-  // Reconstruct the shorthand command
-  for (let i = startIndex; i < argv.length; i++) {
-    const arg = argv[i];
-    shorthandCommandParts.push(arg);
-
-    for (const char of arg) {
-      if (char === '(') {
-        parenDepth++;
-      } else if (char === ')') {
-        parenDepth--;
-        if (parenDepth === 0) {
-          found = true;
-          break;
-        }
-      }
-    }
-    if (found) {
-      const remainingArgs = argv.slice(i + 1);
-      const shorthandCommand = shorthandCommandParts.join(' ');
-      return { shorthandCommand, remainingArgs };
-    }
-  }
-
-  // If we reach here, the shorthand command wasn't properly closed
-  return null;
 }
 
 type Fail = (message: string, options?: { cause?: unknown; help?: boolean }) => void;

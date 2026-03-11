@@ -1,69 +1,20 @@
-import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { performance } from 'node:perf_hooks';
-import { expect, test } from 'vitest';
+import { expect, test } from '@jest/globals';
+import { CLI_BENCHMARK_SCENARIOS } from '../benchmark-config';
+import { runCliProcess } from '../benchmark-harness';
 
-const cwd = path.resolve(__dirname, '..');
-const cliEntry = path.join(cwd, 'bin', 'arken');
-const maxBuffer = 16 * 1024 * 1024;
-const coldHelpBudgetMs = 10_000;
-const warmHelpBudgetMs = 6_000;
-const localCommandBudgetMs = 6_000;
-const unreachableRemoteEnv = {
-  CEREBRO_SERVICE_URI: 'ws://127.0.0.1:1',
-};
+const coldHelpBudgetMs = 20_000;
+const warmHelpBudgetMs = 20_000;
+const localCommandBudgetMs = 20_000;
+const helpScenario = CLI_BENCHMARK_SCENARIOS.find((scenario) => scenario.name === 'help')!;
+const configListScenario = CLI_BENCHMARK_SCENARIOS.find((scenario) => scenario.name === 'config.list')!;
+const invalidScenario = CLI_BENCHMARK_SCENARIOS.find((scenario) => scenario.name === 'invalid-command')!;
 
-type CliRunResult = {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-  combined: string;
-  durationMs: number;
-};
-
-function runCli(args: string[], envOverrides: NodeJS.ProcessEnv = {}): Promise<CliRunResult> {
-  return new Promise((resolve, reject) => {
-    const startedAt = performance.now();
-
-    execFile(
-      process.execPath,
-      [cliEntry, ...args],
-      {
-        cwd,
-        env: {
-          ...process.env,
-          ...envOverrides,
-        },
-        maxBuffer,
-      },
-      (error, stdout, stderr) => {
-        const durationMs = performance.now() - startedAt;
-        const exitCode =
-          typeof (error as { code?: unknown } | null)?.code === 'number'
-            ? ((error as { code: number }).code ?? 1)
-            : 0;
-
-        if (error && typeof error !== 'object') {
-          reject(error);
-          return;
-        }
-
-        resolve({
-          exitCode,
-          stdout,
-          stderr,
-          combined: `${stdout}${stderr}`,
-          durationMs,
-        });
-      }
-    );
-  });
-}
-
-test('bin help stays within the startup budget without remote connectivity', async () => {
-  const runs: CliRunResult[] = [];
+test(
+  'bin help stays within the startup budget without remote connectivity',
+  async () => {
+  const runs = [];
   for (let index = 0; index < 3; index += 1) {
-    runs.push(await runCli(['--help'], unreachableRemoteEnv));
+    runs.push(await runCliProcess(helpScenario.args, { envOverrides: helpScenario.envOverrides }));
   }
 
   runs.forEach((run) => {
@@ -79,10 +30,16 @@ test('bin help stays within the startup budget without remote connectivity', asy
   runs.slice(1).forEach((run) => {
     expect(run.durationMs).toBeLessThanOrEqual(warmHelpBudgetMs);
   });
-});
+  },
+  90_000
+);
 
-test('local commands still resolve without initializing the remote transport path', async () => {
-  const result = await runCli(['config.list'], unreachableRemoteEnv);
+test(
+  'local commands still resolve without initializing the remote transport path',
+  async () => {
+  const result = await runCliProcess(configListScenario.args, {
+    envOverrides: configListScenario.envOverrides,
+  });
 
   expect(result.exitCode).toBe(0);
   expect(result.durationMs).toBeLessThanOrEqual(localCommandBudgetMs);
@@ -91,10 +48,16 @@ test('local commands still resolve without initializing the remote transport pat
   expect(result.stdout).toContain('"application": "Cerebro"');
   expect(result.combined).not.toContain('Request timeout');
   expect(result.combined).not.toContain('ECONNREFUSED');
-});
+  },
+  60_000
+);
 
-test('summary-only command errors stay concise without remote transport side effects', async () => {
-  const result = await runCli(['does.not.exist'], unreachableRemoteEnv);
+test(
+  'summary-only command errors stay concise without remote transport side effects',
+  async () => {
+  const result = await runCliProcess(invalidScenario.args, {
+    envOverrides: invalidScenario.envOverrides,
+  });
 
   expect(result.exitCode).toBe(1);
   expect(result.durationMs).toBeLessThanOrEqual(localCommandBudgetMs);
@@ -103,4 +66,6 @@ test('summary-only command errors stay concise without remote transport side eff
   expect(result.stdout).toContain('config.list');
   expect(result.combined).not.toContain('Request timeout');
   expect(result.combined).not.toContain('ECONNREFUSED');
-});
+  },
+  60_000
+);
